@@ -1,0 +1,30 @@
+# --- OS / IDE ---
+.DS_Store
+.idea/
+.vscode/
+
+# --- Claude Code local state ---
+.claude/
+
+# --- pixi environment (regenerated from pixi.lock via `pixi install`) ---
+.pixi/
+
+# --- Node modules (also covered by vole-app/ and vole-core/ .gitignore) ---
+node_modules/
+
+# --- Build output (also covered by sub-project .gitignore: es/, imageviewer/, etc.) ---
+
+# --- Local test data: large OME-Zarr datasets and their zips, not part of the source ---
+zarr/
+*.zip
+*.ome.zarr/
+
+# --- Obsolete one-off patch files (the changes are already applied in-tree) ---
+*.patch
+
+# --- Agent context notes (kept locally, not part of the project source) ---
+CLAUDE-*.md
+
+# --- Scratch / benchmark scripts ---
+bench_*.mjs
+verify_*.mjs

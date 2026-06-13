@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="icon-axes" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+  <circle id="center" cx="6.26" cy="12.84" r="1" fill="currentColor"/>
+  <path id="arrow-x" d="M14.27,15.23l.7-1.64h-6.86c.09-.23,.15-.48,.15-.75s-.06-.52-.15-.75h6.86l-.7-1.64,5.66,2.39-5.66,2.39Z" fill="currentColor"/>
+  <path id="arrow-y" d="M6.26,.03L3.87,5.69l1.64-.69v5.99c.23-.1,.48-.15,.75-.15s.52,.05,.75,.15V5l1.64,.69L6.26,.03Z" fill="currentColor"/>
+  <path id="arrow-z" d="M5.59,17.23L.07,19.91l1.93-5.83,.77,1.6,1.61-1.83s.08-.06,.11-.09c.23,.44,.62,.78,1.09,.95-.02,.04-.04,.09-.07,.12l-1.61,1.84,1.69,.56Z" fill="currentColor"/>
+</svg>

@@ -1,0 +1,50 @@
+[project]
+name = "vole-workspace"
+version = "0.1.0"
+description = "Vol-E monorepo — vole-core (engine) + vole-app (React app) with local OME-Zarr .zip support"
+channels = ["conda-forge"]
+platforms = ["osx-arm64"]
+
+[dependencies]
+nodejs = ">=20,<21"
+
+# ---------------------------------------------------------------------------
+# Setup (run once after cloning, or after a git pull that changes deps)
+# ---------------------------------------------------------------------------
+# vole-app/package.json pins "@aics/vole-core": "file:../vole-core", so a plain
+# `npm install` in vole-app symlinks the local engine automatically — no separate
+# link step. The Three.js single-instance fix lives in vole-app/webpack.common.js.
+
+[tasks]
+
+# 1. Install vole-core dependencies
+install-core = { cmd = "npm install", cwd = "vole-core" }
+
+# 2. Build vole-core (compiles es/ + type declarations consumed by the app)
+build-core = { cmd = "npm run build", cwd = "vole-core", depends-on = ["install-core"] }
+
+# 3. Install vole-app dependencies. --ignore-scripts skips the `prepare` prod build
+#    (not needed for dev, and it would run before es/ is in place on a cold clone).
+#    The file:../vole-core dependency links the local engine during this install.
+install-app = { cmd = "npm install --ignore-scripts", cwd = "vole-app", depends-on = ["build-core"] }
+
+# Full setup in one command
+setup = { depends-on = ["install-app"] }
+
+# ---------------------------------------------------------------------------
+# Dev / run
+# ---------------------------------------------------------------------------
+
+# Start the vole-app dev server (webpack serve) at http://localhost:9020
+dev = { cmd = "npm start", cwd = "vole-app" }
+
+# Recompile vole-core after editing it; the app's webpack picks up es/ via the symlink.
+rebuild-core = { cmd = "npm run build", cwd = "vole-core" }
+
+# ---------------------------------------------------------------------------
+# Typecheck
+# ---------------------------------------------------------------------------
+
+typecheck-core = { cmd = "npx tsc --noEmit -p tsconfig.json", cwd = "vole-core" }
+typecheck-app  = { cmd = "npm run typeCheck", cwd = "vole-app" }
+typecheck      = { depends-on = ["typecheck-core", "typecheck-app"] }

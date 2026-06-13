@@ -1,0 +1,88 @@
+.viewer-metadata-table {
+  width: 100%;
+  table-layout: fixed;
+  box-sizing: border-box;
+  border-spacing: 0;
+  border-collapse: collapse;
+
+  tbody {
+    padding: 10px;
+  }
+
+  /* On the top nest level, the top border is given by the panel header, and the bottom by the containing table */
+  &.metadata-top-level {
+    border-bottom: 1px solid var(--color-controlpanel-border);
+
+    > tbody > tr.metadata-row-collapse-title:first-child {
+      border-top: none;
+    }
+  }
+
+  /* ----- TABLE ROWS ----- */
+  tr {
+    color: var(--color-controlpanel-text);
+
+    &:nth-child(odd):not(.metadata-row-collapse-content):not(.metadata-row-collapse-title) {
+      background-color: #3a3a3a;
+    }
+
+    /* CATEGORY TITLE */
+    &.metadata-row-collapse-title {
+      color: var(--color-text-section);
+      background-color: var(--color-controlpanel-section-bg);
+
+      /* Keeps borders aligned when this category opens and closes */
+      &:not(.metadata-collapse-collapsed) > td {
+        padding-bottom: 7px;
+      }
+    }
+
+    /* CATEGORY CONTENT */
+    &.metadata-row-collapse-content.metadata-collapse-collapsed {
+      visibility: collapse;
+      height: 0px;
+      display: none;
+    }
+
+    /* ROW BORDERS: all categories have top borders; any row which follows a category provides its bottom border */
+    tr.metadata-row-collapse-title,
+    &.metadata-row-collapse-content + tr {
+      border-top: 1px solid var(--color-controlpanel-border);
+    }
+  }
+
+  /* ----- TABLE CELLS ----- */
+  td {
+    padding: 8px 0;
+    overflow-wrap: break-word;
+
+    .metadata-collapse-caret {
+      cursor: pointer;
+      padding-left: 16px;
+      padding-right: 10px;
+    }
+
+    &.metadata-key {
+      padding-left: 16px;
+    }
+
+    &.metadata-value {
+      text-align: right;
+      padding-left: 20px;
+      padding-right: 16px;
+    }
+
+    &:last-child {
+      padding-right: 8px;
+    }
+
+    &.metadata-collapse-content {
+      padding: 0;
+      padding-left: 24px;
+    }
+
+    i {
+      transition: transform 0.1s linear;
+    }
+  }
+}

@@ -1,0 +1,131 @@
+@import "../../assets/styles/noui-slider-override";
+@import "../../assets/styles/variables.css";
+
+.control-panel-col-container {
+  display: flex;
+  height: 100%;
+
+  .control-panel-tab-col,
+  .control-panel-col {
+    border-right: 1px solid var(--color-controlpanel-border);
+  }
+
+  /* TAB COLUMN */
+  .control-panel-tab-col {
+    text-align: center;
+
+    .ant-btn {
+      margin-top: 12px;
+      background-color: transparent;
+      border: 1px solid transparent;
+      color: var(--color-button-tertiary-text);
+
+      &:not([disabled]) {
+        &.btn-tabactive {
+          color: var(--color-button-icon-active-text);
+          background-color: var(--color-button-icon-active-bg);
+          border-color: var(--color-button-icon-active-outline);
+        }
+
+        &:hover,
+        &:focus-visible {
+          color: var(--color-button-icon-active-text);
+          background-color: var(--color-button-primary-hover-bg);
+          border-color: var(--color-button-icon-active-outline);
+        }
+      }
+    }
+
+    .btn-collapse {
+      svg {
+        transform: rotate(180deg);
+        transition: transform 0.2s linear;
+      }
+      &.btn-collapse-collapsed svg {
+        transform: rotate(0deg);
+      }
+    }
+
+    .tab-divider {
+      width: 70%;
+      margin: 12px 15% 0;
+      border-bottom: 1px solid var(--color-controlpanel-border);
+    }
+  }
+
+  /* CONTENT COLUMN */
+  .control-panel-col {
+    max-width: 540px;
+    overflow-y: scroll;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    .control-panel-title {
+      margin: 16px;
+      max-height: 24px; /* align bottom border with divider to the left */
+      font-size: 1.4em;
+    }
+
+    .channel-settings-header {
+      margin: 0 16px 16px;
+      display: flex;
+      justify-content: space-between;
+
+      .ant-checkbox-wrapper {
+        color: var(--color-controlpanel-text);
+      }
+    }
+
+    /* hover states of checkboxes */
+    .ant-checkbox-wrapper:hover .ant-checkbox-inner {
+      border-color: white;
+    }
+
+    .control-panel-content {
+      border-top: 1px solid var(--color-controlpanel-border);
+
+      /* checkbox spacing, in channel entries and shared in headings */
+      .channel-visibility-controls,
+      .ant-collapse-extra {
+        align-self: end;
+        width: 40%;
+        display: flex;
+
+        .ant-checkbox-wrapper {
+          flex: 4;
+        }
+      }
+
+      .channel-visibility-controls .single-channel-text {
+        font-size: 11px;
+      }
+
+      .ant-collapse-content-box {
+        padding: 0;
+      }
+    }
+
+    .ant-collapse {
+      background-color: var(--color-controlpanel-bg);
+
+      .ant-collapse-header {
+        padding: 13px 16px;
+        background-color: var(--color-controlpanel-section-bg);
+      }
+
+      &.single-channel-mode .ant-list {
+        cursor: pointer;
+      }
+
+      .ant-collapse-item:not(.ant-collapse-item-active):last-child {
+        border-bottom: 1px solid var(--color-controlpanel-border);
+      }
+    }
+
+    /*slider settings*/
+    @extend %axis-override;
+  }
+}

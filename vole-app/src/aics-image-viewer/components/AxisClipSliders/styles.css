@@ -1,0 +1,208 @@
+@import "../../assets/styles/noui-slider-override";
+@import "../../assets/styles/variables";
+
+.clip-sliders {
+  --w-group-title: 50px;
+  --w-axis-slider: 480px;
+  --w-name: 10px;
+  --w-values-3d: 160px;
+  --w-values-2d: 100px;
+  --w-play-button: 28px;
+
+  --color-x: #ff4d4d;
+  --color-y: #61d900;
+  --color-z: #0099ff;
+
+  @extend %axis-override;
+  max-width: calc(var(--w-group-title) + var(--w-axis-slider) + var(--w-name) + var(--w-values-3d) + 80px);
+  position: relative;
+  margin: auto;
+  left: 0;
+  right: 0;
+  padding: 0 25px;
+
+  .slider-group {
+    display: flex;
+    flex-wrap: nowrap;
+
+    &:not(:last-child) {
+      margin-bottom: 8px;
+    }
+
+    .slider-group-title {
+      flex: 0 0 var(--w-group-title);
+      margin: 0;
+    }
+
+    .slider-group-rows {
+      flex: 1 1 auto;
+    }
+  }
+
+  .slider-row {
+    display: flex;
+    flex-wrap: wrap;
+    color: #bfbfbf;
+    margin-bottom: 6px;
+
+    &.slider-x {
+      .slider-name {
+        color: var(--color-x);
+      }
+      .noUi-handle {
+        background-color: var(--color-x) !important;
+      }
+    }
+
+    &.slider-y {
+      .slider-name {
+        color: var(--color-y);
+      }
+      .noUi-handle {
+        background-color: var(--color-y) !important;
+      }
+    }
+
+    &.slider-z {
+      .slider-name {
+        color: var(--color-z);
+      }
+      .noUi-handle {
+        background-color: var(--color-z) !important;
+      }
+    }
+
+    &.slider-t {
+      .slider-values {
+        flex: 0 0 var(--w-values-2d);
+      }
+    }
+  }
+
+  /* container to keep slider and labels on one line while play button wraps */
+  .axis-slider-container {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+  }
+
+  .axis-slider {
+    flex: 1 1 var(--w-axis-slider);
+    max-width: var(--w-axis-slider);
+    margin-top: 0.5em;
+  }
+
+  .slider-name,
+  .slider-play-buttons {
+    margin-right: 14px;
+    white-space: nowrap;
+  }
+
+  .slider-name {
+    flex: 0 0 var(--w-name);
+    font-weight: bold;
+  }
+
+  .slider-values {
+    flex: 0 0 var(--w-values-3d);
+    max-width: var(--w-values-3d);
+    margin-left: 18px;
+    white-space: nowrap;
+  }
+
+  .slider-play-buttons {
+    margin-top: 2px;
+  }
+
+  &.clip-sliders-2d {
+    /* Make room for play button */
+    max-width: calc(
+      var(--w-group-title) + var(--w-axis-slider) + var(--w-name) + var(--w-values-2d) + var(--w-play-button) + 80px
+    );
+
+    /* Slider slice display contains 2 numbers in 2d mode, not 3 - shrink accordingly */
+    .slider-values {
+      flex: 0 0 var(--w-values-2d);
+    }
+
+    .axis-slider-container {
+      flex: 0 1 calc(var(--w-axis-slider) + var(--w-name) + var(--w-values-2d) + 30px);
+    }
+  }
+
+  .noUi-target {
+    height: 3px;
+    background-color: rgba(160, 160, 160, 0.4) !important;
+  }
+
+  .noUi-handle {
+    transform: translate(-50%, calc(-100% - 4px));
+  }
+
+  /* Dot on the slider track for single-handle sliders */
+  .slider-single-handle .noUi-handle::before {
+    content: "";
+    display: block;
+    height: 4px;
+    width: 4px;
+    left: 2px;
+    top: 11px;
+    border-radius: 50%;
+    background-color: $slider-color;
+  }
+
+  .noUi-handle::after {
+    box-shadow: 4px 4px 3px 0 rgba(0, 0, 0, 0.2);
+  }
+
+  .noUi-pips {
+    padding: 0;
+    height: 0;
+    top: 2px;
+
+    .noUi-marker-normal {
+      display: none;
+    }
+
+    .noUi-marker-large {
+      background-color: #4b4b4b;
+      height: 9px;
+      bottom: -4px;
+    }
+  }
+
+  .ant-btn.slider-play-button {
+    line-height: 1;
+    height: 23px;
+    width: var(--w-play-button);
+    color: #bfbfbf;
+    border-color: #4b4b4b !important;
+    background-color: transparent;
+
+    &:hover {
+      background-color: rgba(160, 160, 160, 0.4);
+    }
+
+    &:hover,
+    &:focus {
+      color: white;
+    }
+
+    &[ant-click-animating-without-extra-node="true"]::after {
+      box-shadow: none !important;
+      background-color: $light-gray;
+    }
+  }
+}
+
+@media only screen and (max-width: 500px) {
+  .clip-sliders .slider-group {
+    display: none;
+  }
+
+  .clip-sliders::after {
+    /* TODO this message should be updated to be more general once time slider is added */
+    content: "ROI clipping is not available at this size. Please try again with a larger viewport.";
+    font-style: italic;
+  }
+}

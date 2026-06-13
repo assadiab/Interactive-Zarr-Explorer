@@ -1,0 +1,130 @@
+@import "../../assets/styles/variables";
+
+.aics-tf-editor {
+  margin-top: 27px;
+
+  .tf-editor-svg.dragging-slider {
+    cursor: ew-resize;
+  }
+
+  .tf-editor-svg.dragging-point {
+    cursor: move;
+  }
+
+  .tf-editor-popover {
+    position: absolute;
+    z-index: 9999;
+    width: 100%;
+  }
+
+  .tf-editor-cover {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+  }
+
+  .tf-editor-control-row {
+    display: flex;
+    color: var(--color-controlpanel-text);
+    justify-content: space-between;
+    align-items: center;
+    min-height: 24px;
+
+    &:not(:first-child) {
+      margin-bottom: 12px;
+    }
+
+    > div {
+      display: flex;
+      gap: 5px;
+    }
+
+    .ant-input-number {
+      border-color: var(--color-button-tertiary-outline);
+      width: 64px;
+
+      input {
+        text-align: right;
+      }
+    }
+  }
+
+  h4 {
+    font-size: 16px;
+    margin-top: 0;
+    margin-bottom: 12px;
+  }
+
+  .tick text {
+    fill: var(--color-controlpanel-text);
+    user-select: none;
+    -o-user-select: none;
+    -moz-user-select: none;
+    -khtml-user-select: none;
+    -webkit-user-select: none;
+  }
+
+  rect.bar {
+    fill: var(--color-controlpanel-border);
+  }
+
+  .axis path,
+  .axis line {
+    stroke: var(--color-controlpanel-border);
+  }
+
+  rect {
+    fill: none;
+    pointer-events: all;
+  }
+
+  .line {
+    stroke: $light-gray;
+    stroke-width: 1px;
+  }
+
+  .sliders {
+    path,
+    line {
+      cursor: ew-resize;
+    }
+
+    line.slider-click-target {
+      stroke: transparent;
+    }
+
+    &.sliders-ramp {
+      path {
+        fill: var(--color-controlpanel-ramp-slider);
+      }
+
+      line:not(.slider-click-target) {
+        stroke: var(--color-controlpanel-ramp-slider);
+      }
+    }
+
+    &.sliders-isovalue {
+      path {
+        fill: var(--color-controlpanel-isovalue-slider);
+      }
+
+      line:not(.slider-click-target) {
+        stroke: var(--color-controlpanel-isovalue-slider);
+      }
+    }
+  }
+
+  circle {
+    fill-opacity: 0.6;
+    cursor: move;
+    stroke: $light-gray;
+    stroke-width: 1.5px;
+
+    &.selected {
+      fill: white;
+      stroke: white;
+    }
+  }
+}

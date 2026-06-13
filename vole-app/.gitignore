@@ -1,0 +1,9 @@
+node_modules
+.idea/
+imageviewer/
+environment.txt
+.DS_Store
+es/
+type-declarations/
+coverage/
+.vscode/

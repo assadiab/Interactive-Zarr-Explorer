@@ -1,0 +1,17 @@
+/* TODO: Replace all of these with CSS variables (e.g. var(--color-text-body) and remove PostCSS from the project.*/
+
+/* $app-height: 100%; */
+/* $dark-gray: #313131; */
+/* $purple: #8048f3; */
+$highlight-purple: #aa88ed;
+/* $light-gray: #6e6e6e; (DUPLICATE) */
+/* $bright-green: #b2d030; */
+/* $background-gray: #fafafa; */
+/* $header-gray: #4b4b4b; (DUPLICATE) */
+/* $background-dark-gray: #131313; */
+$dimgray: #6e6e6e;
+/* $highlight-green: #b2d030; */
+$text-gray: #a0a0a0;
+$header-gray: #4b4b4b;
+$light-gray: #aeacae;
+$slider-color: $text-gray;

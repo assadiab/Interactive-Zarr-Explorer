@@ -1,0 +1,47 @@
+import { MathUtils } from "three";
+
+const spotlightSettings = Object.freeze({
+  angle: 36 * MathUtils.DEG2RAD,
+  castShadow: false,
+  color: 0xffffff,
+  intensity: 15.0,
+  position: {
+    x: -4,
+    y: 3.5,
+    z: 7,
+  },
+});
+
+const ambientLightSettings = Object.freeze({
+  color: 0xffffff,
+  intensity: 1.75,
+});
+
+const reflectedLightSettings = Object.freeze({
+  castShadow: false,
+  color: 0xff88aa,
+  intensity: 2.0,
+  position: {
+    x: 1,
+    y: -5,
+    z: 0,
+  },
+});
+
+const fillLightSettings = Object.freeze({
+  castShadow: false,
+  color: 0xe8d1a9,
+  intensity: 1.5,
+  position: {
+    x: 2.5,
+    y: 0.2,
+    z: 1.5,
+  },
+});
+
+export default {
+  spotlightSettings,
+  ambientLightSettings,
+  reflectedLightSettings,
+  fillLightSettings,
+};

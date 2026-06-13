@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <g id="icon-download">
+    <polygon id="arrow" points="17 14.93 17 0 15 0 15 14.93 11.56 13.47 16 24 20.44 13.47 17 14.93" fill="currentColor"/>
+    <path id="base" d="M28.5,32H3.5c-1.38,0-2.5-1.12-2.5-2.5v-9.5h1v9.5c0,.83,.67,1.5,1.5,1.5H28.5c.83,0,1.5-.67,1.5-1.5v-9.5h1v9.5c0,1.38-1.12,2.5-2.5,2.5Z" fill="currentColor"/>
+  </g>
+</svg>

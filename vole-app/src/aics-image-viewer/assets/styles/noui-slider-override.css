@@ -1,0 +1,67 @@
+@import "./variables.css";
+
+%axis-override {
+  /*slider settings*/
+  .noUi-horizontal .noUi-handle {
+    box-shadow: none;
+    cursor: pointer;
+    pointer-events: inherit;
+    background-color: $slider-color;
+    top: 0px;
+    left: 100%;
+    z-index: 1;
+    width: 8px;
+    height: 8px;
+    border: none;
+    border-radius: 0;
+    transform: translate(-50%, calc(-100% - 4px));
+  }
+
+  .noUi-handle::before {
+    display: none;
+    content: none;
+  }
+
+  /* Slider handle arrow */
+  .noUi-handle::after {
+    background-color: inherit;
+    width: 8px;
+    height: 8px;
+    top: 0;
+    left: 0;
+    /* rotate 45deg, translate down */
+    transform: matrix(0.5, 0.5, -0.5, 0.5, 0, 4);
+    content: "";
+  }
+
+  .noUi-touch-area {
+    padding: 8px;
+    margin-top: -4px;
+    margin-left: -4px;
+  }
+
+  .noUi-connect {
+    background-color: $slider-color;
+  }
+
+  .noUi-target.noUi-ltr.noUi-horizontal {
+    background-color: $slider-color;
+  }
+
+  .noUi-horizontal {
+    height: 2px;
+  }
+
+  .noUi-target {
+    border: none;
+    box-shadow: none;
+  }
+
+  .noUi-tooltip {
+    border: none;
+    background-color: transparent;
+    color: inherit;
+    font-size: 10px;
+    top: calc(100% + 3px);
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "arrowParens": "always",
+  "jsxBracketSameLine": false,
+  "printWidth": 120,
+  "trailingComma": "es5",
+  "tabWidth": 2,
+  "importOrder": ["^[./]+.*/[a-z]+[\\w]*$", "^[./].*/[\\w]*$", "^[./].*/[\\w_\\-?]*[.][\\w._\\-?]*$"],
+  "importOrderSeparation": true,
+  "importOrderSortSpecifiers": true,
+  "importOrderCaseInsensitive": true,
+  "plugins": ["@trivago/prettier-plugin-sort-imports"]
+}

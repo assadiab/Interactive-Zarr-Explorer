@@ -1,0 +1,160 @@
+@import "../../assets/styles/variables";
+
+/* Provides background and buttons when toolbar is in scroll mode */
+.viewer-toolbar-container {
+  position: absolute;
+  width: 100%;
+  z-index: 250;
+
+  /* Scroll buttons */
+  .viewer-toolbar-scroll-left,
+  .viewer-toolbar-scroll-right {
+    height: 100%;
+    width: 18px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(75, 75, 75, 0.85);
+    display: none;
+    position: absolute;
+    top: 0;
+    z-index: 255;
+    transition: color 0.3s;
+    &:hover {
+      color: white;
+    }
+  }
+  .viewer-toolbar-scroll-left {
+    left: 0;
+  }
+  .viewer-toolbar-scroll-right {
+    right: 0;
+  }
+
+  /* Toolbar scroll mode: collapse all sections to the left and scroll */
+  &.viewer-toolbar-scroll {
+    border-bottom: 1px solid var(--color-layout-dividers);
+
+    .viewer-toolbar-scroll-left,
+    .viewer-toolbar-scroll-right {
+      display: flex;
+    }
+
+    .viewer-toolbar {
+      white-space: nowrap;
+      justify-content: normal;
+
+      overflow-x: scroll;
+      scrollbar-width: none;
+      &::-webkit-scrollbar {
+        display: none;
+      }
+
+      .viewer-toolbar-left {
+        position: static;
+        margin-left: 15px;
+      }
+      .viewer-toolbar-right {
+        position: static;
+        margin-right: 15px;
+      }
+    }
+  }
+}
+
+/* Alignment and spacing of groups of toolbar controls */
+
+.viewer-toolbar {
+  padding: 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+
+  > div {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    vertical-align: middle;
+  }
+
+  .viewer-toolbar-left,
+  .viewer-toolbar-right {
+    position: absolute;
+    &:not(:empty) {
+      padding: 0 12px;
+    }
+  }
+  .viewer-toolbar-left {
+    left: 0;
+  }
+  .viewer-toolbar-right {
+    right: 0;
+  }
+
+  .viewer-toolbar-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    vertical-align: middle;
+  }
+
+  .viewer-toolbar-group:not(:last-child) {
+    margin-right: 14px;
+  }
+  .viewer-toolbar-group > :not(:last-child) {
+    margin-right: 6px;
+  }
+
+  /* Icon-only buttons */
+
+  .btn-borderless,
+  .ant-select.ant-select-outlined .ant-select-selector,
+  .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-checked) {
+    background-color: var(--color-toolbar-button-bg);
+  }
+
+  .ant-btn-icon-only {
+    padding-bottom: 4px;
+    padding-left: 1px;
+  }
+
+  .btn-borderless {
+    border-color: transparent;
+    color: var(--color-text-body);
+  }
+
+  .btn-active {
+    color: var(--color-button-icon-active-text);
+    background-color: var(--color-button-icon-active-bg);
+    border: 1px solid var(--color-button-icon-active-outline);
+  }
+
+  /* Radio buttons */
+
+  /* Override some default colors from `StyleProvider` */
+  --color-button-radio-hover-outline: var(--color-button-tertiary-active-outline);
+  --color-button-radio-hover-text: var(--color-button-icon-active-text);
+
+  .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-disabled):hover,
+  .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-disabled):has(:focus-visible) {
+    background-color: var(--color-button-tertiary-hover-text);
+  }
+
+  /* Dropdown */
+
+  .ant-select.select-resolution {
+    > .ant-select-selector {
+      text-align: left;
+    }
+
+    .ant-select-selection-item {
+      color: var(--color-button-tertiary-text);
+    }
+
+    &.ant-select-disabled {
+      .ant-select-arrow {
+        display: none;
+      }
+    }
+  }
+}

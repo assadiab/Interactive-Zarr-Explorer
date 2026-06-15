@@ -13,6 +13,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/nodejs-20.20.2-hf0fe506_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/openssl-3.6.3-hd24854e_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/zlib-1.3.2-h8088a28_2.conda
+      win-64:
+      - conda: https://conda.anaconda.org/conda-forge/win-64/nodejs-20.20.2-h80290e7_0.conda
 packages:
 - conda: https://conda.anaconda.org/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
   sha256: 9812a303a1395e1dafbd92e5bc8a1ff6013bcbba0a09c7f03a8d23e43560aa9b
@@ -75,6 +77,13 @@ packages:
   license_family: MIT
   size: 11286021
   timestamp: 1774522928291
+- conda: https://conda.anaconda.org/conda-forge/win-64/nodejs-20.20.2-h80290e7_0.conda
+  sha256: ec577efa787f8dcc72d8e2c66015520da42a15b9fe6a77929012f9ecf23f4de5
+  md5: 46b3e1dcfb686fa2912efd4e714a56ba
+  license: MIT
+  license_family: MIT
+  size: 23161540
+  timestamp: 1774514441113
 - conda: https://conda.anaconda.org/conda-forge/osx-arm64/openssl-3.6.3-hd24854e_0.conda
   sha256: b3e3ca895c336d4eb91c5d2f244a312bdb59a0de8cfa0cc4c179225ab2f6bbfb
   md5: 8187a86242741725bfa74785fe812979

@@ -195,7 +195,8 @@ export default function AppWrapper(props: AppWrapperProps): ReactElement {
       <Header title={imageTitle} noNavigate>
         <FlexRowAlignCenter $gap={12}>
           <FlexRowAlignCenter $gap={2}>
-            <LoadModal onLoad={onLoad} />
+            <LoadModal mode="url" onLoad={onLoad} />
+            <LoadModal mode="zip" onLoad={onLoad} />
             {viewerProps && <ShareModal appProps={viewerProps} view3dRef={view3dRef} imageTitle={imageTitle} />}
           </FlexRowAlignCenter>
           <HelpDropdown />

@@ -189,7 +189,8 @@ export default function LandingPage(props: LandingPageProps): ReactElement {
       <Header>
         <FlexRowAlignCenter $gap={12}>
           <FlexRowAlignCenter $gap={2}>
-            <LoadModal onLoad={onClickLoad} />
+            <LoadModal mode="url" onLoad={onClickLoad} />
+            <LoadModal mode="zip" onLoad={onClickLoad} />
           </FlexRowAlignCenter>
           <HelpDropdown />
         </FlexRowAlignCenter>

@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "Interactive Zarr Explorer"
+abstract: >-
+  Browser-only viewer and analysis tool for local OME-Zarr `.zip` files:
+  lazy per-chunk ZIP reading, interactive feature scatter with gating,
+  correlation and annotation panels, and CSV export. No server, no upload.
+  A fork of the Allen Institute's Vol-E (Volume Explorer).
+type: software
+authors:
+  - family-names: Diabira
+    given-names: Assa
+    affiliation: "CNRS, Cochin Image Database, Université Paris Cité"
+repository-code: "https://github.com/assadiab/Interactive-Zarr-Explorer"
+license: BSD-3-Clause
+version: 0.1.0
+date-released: "2026-06-23"
+keywords:
+  - OME-Zarr
+  - NGFF
+  - bioimage
+  - visualization
+  - WebGL
+references:
+  - type: software
+    title: "Vol-E (Volume Explorer)"
+    authors:
+      - name: "Allen Institute for Cell Science"
+    repository-code: "https://github.com/allen-cell-animated/vole-app"
+    notes: "Upstream project this work is forked from."

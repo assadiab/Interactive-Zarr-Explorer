@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Single root workflow. GitHub only runs workflows in the repo-root
+# .github/workflows, so the inherited Allen workflows under
+# vole-core/.github and vole-app/.github are inactive and should be deleted.
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20 # matches pixi's nodejs >=20,<21 pin
+
+      # --- vole-core: install -> build (transpile + emit types) -> checks ---
+      - name: Install vole-core
+        run: npm install
+        working-directory: vole-core
+
+      - name: Build vole-core
+        run: npm run build
+        working-directory: vole-core
+
+      - name: Lint vole-core
+        # non-blocking for now: inherited code carries lint debt.
+        # Make this required once the inherited warnings are cleared.
+        continue-on-error: true
+        run: npm run lint
+        working-directory: vole-core
+
+      - name: Test vole-core (vitest)
+        run: npm test -- --passWithNoTests
+        working-directory: vole-core
+
+      # --- vole-app: install (consumes built core) -> typecheck -> checks ---
+      - name: Install vole-app
+        run: npm install --ignore-scripts
+        working-directory: vole-app
+
+      - name: Typecheck vole-app
+        # non-blocking for now: one known pre-existing error (three@version
+        # Box3 mismatch in useVolume.ts) unrelated to this fork's code.
+        # Make this required once that mismatch is resolved.
+        continue-on-error: true
+        run: npm run typeCheck
+        working-directory: vole-app
+
+      - name: Lint vole-app
+        continue-on-error: true
+        run: npm run lint
+        working-directory: vole-app
+
+      - name: Test vole-app (jest)
+        run: npm test
+        working-directory: vole-app

@@ -23,6 +23,7 @@ zarr/
 *.patch
 
 # --- Agent context notes (kept locally, not part of the project source) ---
+CLAUDE.md
 CLAUDE-*.md
 
 # --- Scratch / benchmark scripts ---

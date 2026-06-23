@@ -31,6 +31,7 @@ import { createDefaultMetadata } from "./loaders/VolumeLoaderUtils.js";
 import type { VolumeDims } from "./VolumeDims.js";
 
 export type { ImageInfo } from "./ImageInfo.js";
+export { default as ZipStore } from "./loaders/zarr_utils/ZipStore.js";
 export type { ControlPoint } from "./Lut.js";
 export type { CreateLoaderOptions } from "./loaders/index.js";
 export type { IVolumeLoader, PerChannelCallback, ThreadableVolumeLoader } from "./loaders/IVolumeLoader.js";

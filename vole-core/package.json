@@ -59,7 +59,7 @@
     "@tweakpane/core": "^1.1.9",
     "@types/three": "^0.184.0",
     "acorn": "^8.7.0",
-    "babel-loader": "^8.2.2",
+    "babel-loader": "^10.1.1",
     "babel-plugin-inline-import": "^3.0.0",
     "babel-plugin-inline-import-data-uri": "^1.0.1",
     "clean-webpack-plugin": "^4.0.0-alpha.0",

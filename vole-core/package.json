@@ -74,7 +74,7 @@
     "husky": "^7.0.1",
     "jsdom": "^25.0.1",
     "lil-gui": "^0.19.2",
-    "lint-staged": "^13.2.1",
+    "lint-staged": "^17.0.8",
     "prettier": "^3.8.3",
     "raw-loader": "^4.0.2",
     "rimraf": "^3.0.2",

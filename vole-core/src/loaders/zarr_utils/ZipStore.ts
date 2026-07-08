@@ -94,7 +94,11 @@ export default class ZipStore implements AsyncReadable<unknown> {
       const located = await Promise.all(batch.map((e) => this.locateData(e)));
       batch.forEach((e, j) => {
         const loc = located[j];
-        map.set(e.filename, {
+        // Normalize path separators: the ZIP spec mandates "/", but some Windows
+        // tools write entry names with "\". zarrita always looks keys up with "/",
+        // so we key the index on the forward-slash form to work on any OS.
+        const name = e.filename.replace(/\\/g, "/");
+        map.set(name, {
           dataStart: loc.dataStart,
           compressedSize: e.compressedSize,
           method: loc.method,

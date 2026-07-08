@@ -16,6 +16,12 @@ const LOCAL_HEADER_FIXED_SIZE = 30;
 const LOCAL_HEADER_SIGNATURE = 0x04034b50;
 const COMPRESSION_STORED = 0;
 
+// --- Hostile-archive safety backstops (tunable) ---
+/** Reject archives with an absurd number of entries (memory-exhaustion guard). */
+const MAX_ENTRIES = 5_000_000;
+/** No single zarr chunk or metadata file should exceed this; catches decompression bombs. */
+const MAX_ENTRY_BYTES = 1024 * 1024 * 1024; // 1 GiB
+
 /** Per-entry index record: enough to read the bytes without re-touching zip.js. */
 type IndexEntry = {
   /** Byte offset of the entry's *data* within the zip Blob (after the local header). */
@@ -81,6 +87,15 @@ export default class ZipStore implements AsyncReadable<unknown> {
         cause: e,
       });
     }
+    // 2a — coarse memory guard: a hostile archive could declare millions of tiny
+    // entries just to blow up the in-memory index.
+    if (entries.length > MAX_ENTRIES) {
+      throw new VolumeLoadError(
+        `This .zip declares an unreasonable number of entries (${entries.length}); refusing to index it.`,
+        { type: VolumeLoadErrorType.TOO_LARGE }
+      );
+    }
+
     const files = entries.filter((e): e is zip.FileEntry => !e.directory);
 
     // Encrypted (password-protected) entries can't be read. On the STORE fast path
@@ -165,17 +180,36 @@ export default class ZipStore implements AsyncReadable<unknown> {
       return undefined;
     }
 
-    if (record.method === COMPRESSION_STORED) {
-      // Fast path: stored uncompressed and the data offset was resolved at index
-      // build time, so this is a single, stateless `Blob.slice()` — fully
-      // parallel, no zip.js reader lock, no CRC recompute, no header re-read.
+    // 2b — zip-bomb guard: refuse to allocate for a single entry that is absurdly
+    // large. A tiny DEFLATE entry can *declare* a huge inflated size; check both the
+    // on-disk and declared-uncompressed sizes.
+    if (record.compressedSize > MAX_ENTRY_BYTES || record.entry.uncompressedSize > MAX_ENTRY_BYTES) {
+      throw new VolumeLoadError("A ZIP entry is unexpectedly large (possible zip bomb); refusing to read it.", {
+        type: VolumeLoadErrorType.TOO_LARGE,
+      });
+    }
+
+    // 2c — integrity: verify the CRC32 of the small, critical *metadata* files by
+    // reading them through zip.js. Bulk chunk data keeps the fast, unchecked STORE
+    // path for performance (documented speed/robustness trade-off).
+    const base = relKey.slice(relKey.lastIndexOf("/") + 1);
+    const isMeta = META_FILENAMES.includes(base);
+
+    if (record.method === COMPRESSION_STORED && !isMeta) {
+      // Fast path: single, stateless `Blob.slice()` — fully parallel, no zip.js
+      // reader lock, no CRC recompute. Guard against a truncated archive whose
+      // directory points past the end of the file (rather than returning short data).
+      if (record.dataStart + record.compressedSize > this.blob.size) {
+        throw new VolumeLoadError("The ZIP archive looks truncated (an entry extends past the end of the file).", {
+          type: VolumeLoadErrorType.LOAD_DATA_FAILED,
+        });
+      }
       const buf = await this.blob.slice(record.dataStart, record.dataStart + record.compressedSize).arrayBuffer();
       return new Uint8Array(buf);
     }
 
-    // Compressed entry (e.g. DEFLATE) or an unexpected local header: defer to
-    // zip.js for correct inflation.
-    return record.entry.getData(new zip.Uint8ArrayWriter());
+    // Metadata (CRC-checked) or DEFLATE entries: let zip.js read + verify the CRC32.
+    return record.entry.getData(new zip.Uint8ArrayWriter(), { checkSignature: true });
   }
 }
 

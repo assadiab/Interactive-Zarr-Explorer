@@ -1,6 +1,8 @@
 import type { AbsolutePath, AsyncReadable } from "zarrita";
 import * as zip from "@zip.js/zip.js";
 
+import { VolumeLoadError, VolumeLoadErrorType } from "../VolumeLoadError.js";
+
 // Decompress inline rather than spawning nested workers. The OME-Zarr loader
 // already runs inside a Web Worker, and nested workers are unreliable across
 // browsers. Only the DEFLATE fallback path uses zip.js decompression; STORE
@@ -66,8 +68,19 @@ export default class ZipStore implements AsyncReadable<unknown> {
   }
 
   private async buildIndex(): Promise<Map<string, IndexEntry>> {
-    const reader = new zip.ZipReader(new zip.BlobReader(this.blob));
-    const entries = await reader.getEntries();
+    // Reading the central directory is the first thing that can fail on a hostile
+    // or truncated file. zip.js throws an opaque internal error here; convert it
+    // into a clear, typed VolumeLoadError so the app can show a useful message.
+    let entries: zip.Entry[];
+    try {
+      const reader = new zip.ZipReader(new zip.BlobReader(this.blob));
+      entries = await reader.getEntries();
+    } catch (e) {
+      throw new VolumeLoadError("Could not read the ZIP archive — the file may be corrupt or not a valid .zip.", {
+        type: VolumeLoadErrorType.LOAD_DATA_FAILED,
+        cause: e,
+      });
+    }
     const files = entries.filter((e): e is zip.FileEntry => !e.directory);
 
     // Resolve each entry's *data* offset once, up front, by reading its local
@@ -90,7 +103,18 @@ export default class ZipStore implements AsyncReadable<unknown> {
       });
     }
     if (!this.prefixExplicit) {
-      this.prefix = detectZarrRootPrefix(map);
+      const detected = detectZarrRootPrefix(map);
+      if (detected === undefined) {
+        // The archive is a valid zip, but holds no zarr metadata anywhere. Other
+        // files (CSVs, etc.) alongside a zarr are fine — this only fires when there
+        // is *no* zarr group at all, so tell the user plainly.
+        throw new VolumeLoadError(
+          "This .zip does not contain an OME-Zarr dataset. Make sure you zipped a folder " +
+            "ending in .ome.zarr (with a .zgroup, .zattrs, or zarr.json inside).",
+          { type: VolumeLoadErrorType.INVALID_METADATA }
+        );
+      }
+      this.prefix = detected;
     }
     return map;
   }
@@ -153,7 +177,7 @@ function normalizePrefix(rootPath: string): string {
  * and return it as a normalized prefix. Lets a user drop in a zip whether the
  * `.ome.zarr` is at the root or nested one level deep.
  */
-function detectZarrRootPrefix(entries: Map<string, IndexEntry>): string {
+function detectZarrRootPrefix(entries: Map<string, IndexEntry>): string | undefined {
   let best: string | undefined;
   let bestDepth = Infinity;
   for (const filename of entries.keys()) {
@@ -169,5 +193,6 @@ function detectZarrRootPrefix(entries: Map<string, IndexEntry>): string {
       best = dir;
     }
   }
-  return best ?? "";
+  // `""` means "found at the zip root"; `undefined` means "no zarr metadata at all".
+  return best;
 }

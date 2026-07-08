@@ -14,6 +14,14 @@ module.exports = (env) => {
       open: ["/"],
       port: 9020,
       allowedHosts: "all",
+      client: {
+        overlay: {
+          // Don't cover the app with the full-screen "Uncaught runtime errors"
+          // overlay — the app shows its own ErrorAlert for load errors. Compile
+          // errors still overlay. (Dev-server only; no effect on prod builds.)
+          runtimeErrors: false,
+        },
+      },
       static: [
         {
           staticOptions: {

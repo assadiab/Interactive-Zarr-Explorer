@@ -83,6 +83,15 @@ export default class ZipStore implements AsyncReadable<unknown> {
     }
     const files = entries.filter((e): e is zip.FileEntry => !e.directory);
 
+    // Encrypted (password-protected) entries can't be read. On the STORE fast path
+    // a raw Blob.slice would silently hand zarrita the *encrypted* bytes, so detect
+    // it up front and fail with a clear message rather than corrupt data.
+    if (files.some((e) => e.encrypted)) {
+      throw new VolumeLoadError("This .zip is encrypted / password-protected. The viewer can only read unencrypted archives.", {
+        type: VolumeLoadErrorType.LOAD_DATA_FAILED,
+      });
+    }
+
     // Resolve each entry's *data* offset once, up front, by reading its local
     // file header. Doing it here (concurrently) means every later `get()` is a
     // single `Blob.slice()` of the data — no per-read header slice. The header's

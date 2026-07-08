@@ -1,6 +1,6 @@
 import { InboxOutlined, LinkOutlined, UploadOutlined } from "@ant-design/icons";
-import { AutoComplete, Button, Modal, Upload } from "antd";
-import type { RcFile } from "antd/es/upload";
+import { AutoComplete, Button, Modal, Segmented, Upload } from "antd";
+import type { RcFile, UploadFile } from "antd/es/upload";
 import Fuse from "fuse.js";
 import React, { type ReactElement, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
@@ -65,7 +65,9 @@ export default function LoadModal(props: LoadModalProps): ReactElement {
 
   const [showModal, setShowModalState] = useState(false);
   const [urlInput, setUrlInput] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | undefined>(undefined);
+  const [zipFiles, setZipFiles] = useState<RcFile[]>([]);
+  // true = overlay all zips' channels into one volume (","); false = one scene per zip ("+").
+  const [overlay, setOverlay] = useState(true);
   const [errorText, setErrorText] = useState<string>("");
 
   const [recentDataUrls, addRecentDataUrl] = useRecentDataUrls();
@@ -74,7 +76,8 @@ export default function LoadModal(props: LoadModalProps): ReactElement {
   const setShowModal = (show: boolean): void => {
     if (show) {
       setUrlInput("");
-      setSelectedFile(undefined);
+      setZipFiles([]);
+      setOverlay(true);
       setErrorText("");
     }
     setShowModalState(show);
@@ -93,13 +96,17 @@ export default function LoadModal(props: LoadModalProps): ReactElement {
   };
 
   const onClickLoadZip = (): void => {
-    if (!selectedFile) {
-      setErrorText("Please choose a local OME-Zarr .zip file.");
+    if (zipFiles.length === 0) {
+      setErrorText("Please choose at least one local OME-Zarr .zip file.");
       return;
     }
-    // The File is passed to the viewer through React Router navigation state
-    // (see LandingPage.onClickLoad), which is structured-cloneable, so the Blob survives.
-    props.onLoad({ ...baseAppProps(), zipData: selectedFile });
+    // The File(s) reach the viewer through React Router navigation state
+    // (see LandingPage.onClickLoad), which is structured-cloneable, so Blobs survive.
+    // One file => a single volume; several => overlay their channels (one scene) or
+    // load one scene per file, depending on the chosen mode.
+    const files = zipFiles as File[];
+    const zipData = files.length === 1 ? files[0] : overlay ? files : { scenes: files };
+    props.onLoad({ ...baseAppProps(), zipData });
     setShowModal(false);
   };
 
@@ -151,7 +158,7 @@ export default function LoadModal(props: LoadModalProps): ReactElement {
         {isZip ? (
           <>
             <p style={{ fontSize: "16px" }}>
-              Select a local OME-Zarr packaged as a <code>.zip</code> file. It is read directly in your browser — no
+              Select one or more local OME-Zarr <code>.zip</code> files. They are read directly in your browser — no
               upload to a server.
             </p>
             <p style={{ fontSize: "12px" }}>
@@ -159,21 +166,41 @@ export default function LoadModal(props: LoadModalProps): ReactElement {
             </p>
             <Upload.Dragger
               accept=".zip,application/zip"
-              maxCount={1}
+              multiple={true}
               beforeUpload={(file: RcFile) => {
-                setSelectedFile(file as File);
+                setZipFiles((prev) => [...prev, file]);
                 setErrorText("");
-                return false; // keep the file local; don't upload anywhere
+                return false; // keep the files local; don't upload anywhere
               }}
-              onRemove={() => setSelectedFile(undefined)}
+              onRemove={(file) => setZipFiles((prev) => prev.filter((f) => f.uid !== file.uid))}
+              fileList={zipFiles as unknown as UploadFile[]}
             >
               <p className="ant-upload-drag-icon">
                 <InboxOutlined />
               </p>
-              <p className="ant-upload-text">Click or drag a .zip file here</p>
+              <p className="ant-upload-text">Click or drag one or more .zip files here</p>
             </Upload.Dragger>
+            {zipFiles.length > 1 && (
+              <div style={{ marginTop: 12 }}>
+                <Segmented
+                  options={[
+                    { label: "Overlay channels", value: "overlay" },
+                    { label: "Separate scenes", value: "scenes" },
+                  ]}
+                  value={overlay ? "overlay" : "scenes"}
+                  onChange={(v) => setOverlay(v === "overlay")}
+                />
+                <p style={{ fontSize: "12px", marginTop: 6 }}>
+                  <i>
+                    {overlay
+                      ? "Overlay: merge every zip's channels into a single volume (they must share the same pixel dimensions)."
+                      : "Scenes: load each zip as its own volume, switchable in the viewer."}
+                  </i>
+                </p>
+              </div>
+            )}
             <FlexRow $gap={6} style={{ marginTop: 16, justifyContent: "flex-end" }}>
-              <Button type="primary" onClick={onClickLoadZip} disabled={!selectedFile}>
+              <Button type="primary" onClick={onClickLoadZip} disabled={zipFiles.length === 0}>
                 Load
               </Button>
             </FlexRow>

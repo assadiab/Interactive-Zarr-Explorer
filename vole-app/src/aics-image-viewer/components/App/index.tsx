@@ -1,5 +1,5 @@
 // 3rd Party Imports
-import { View3d } from "@aics/vole-core";
+import { View3d, ZipStore } from "@aics/vole-core";
 import type { LoadSpec, Volume } from "@aics/vole-core";
 import { Layout } from "antd";
 import { debounce, isEqual } from "lodash";
@@ -22,11 +22,13 @@ import { select, useViewerState } from "../../state/store";
 import { subscribeImageToState, subscribeViewToState } from "../../state/subscribers";
 import type { ViewerState } from "../../state/types";
 import useVolume, { ImageLoadStatus } from "../useVolume";
+import { loadMeasurements } from "../../shared/utils/loadMeasurements";
 import type { ScenePath } from "../../shared/utils/sceneStore";
 import type { AppProps, ControlVisibilityFlags, MultisceneUrls, MultisceneZips, UseImageEffectType } from "./types";
 
 import CellViewerCanvasWrapper from "../CellViewerCanvasWrapper";
 import ControlPanel from "../ControlPanel";
+import RightPanel from "../RightPanel";
 import { useErrorAlert } from "../ErrorAlert";
 import StyleProvider from "../StyleProvider";
 import Toolbar from "../Toolbar";
@@ -125,6 +127,18 @@ function zipDataToScenes(zipData: Blob | Blob[] | MultisceneZips, rootPath?: str
   return [{ zips: Array.isArray(zipData) ? zipData : [zipData], rootPath }];
 }
 
+/** The single zip Blob to read the optional measurement table from: the first scene's first overlay. */
+function firstZipBlob(zipData: Blob | Blob[] | MultisceneZips): Blob | undefined {
+  if (zipData instanceof Blob) {
+    return zipData;
+  }
+  if (Array.isArray(zipData)) {
+    return zipData[0];
+  }
+  const first = zipData.scenes[0];
+  return Array.isArray(first) ? first[0] : first;
+}
+
 const App: React.FC<AppProps> = (props) => {
   props = { ...defaultProps, ...props };
 
@@ -214,6 +228,29 @@ const App: React.FC<AppProps> = (props) => {
       }),
     [scenes]
   );
+
+  // Load the per-object measurement table whenever the data source is a local zip, so the Features
+  // (scatter) tab can offer it. `zipData` may be one Blob, several overlaid Blobs, or multiple scenes;
+  // read the table from the first zip. Runs for every entry point that feeds `App` a zip (the main
+  // viewer's "Load .zip" and the standalone /local page). Cleared when the source has no zip (e.g. a
+  // URL load) so a stale table never lingers.
+  useEffect(() => {
+    const measurementZip = zipData && firstZipBlob(zipData);
+    if (!measurementZip) {
+      useViewerState.getState().setMeasurements(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const table = await loadMeasurements(new ZipStore(measurementZip));
+      if (!cancelled) {
+        useViewerState.getState().setMeasurements(table);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [zipData]);
 
   const maskChannelName = props.viewerChannelSettings?.maskChannelName;
 
@@ -399,6 +436,9 @@ const App: React.FC<AppProps> = (props) => {
 
   // const [channelGroupedByType, setChannelGroupedByType] = useState<ChannelGrouping>({});
   const [controlPanelClosed, setControlPanelClosed] = useState(() => window.innerWidth < CONTROL_PANEL_CLOSE_WIDTH);
+  // The right analysis panel (Annotation, …) only exists once a measurement table is loaded.
+  const hasMeasurements = useViewerState((s) => s.measurements !== null);
+  const [rightPanelClosed, setRightPanelClosed] = useState(false);
   // Only allow auto-close once while the screen is too narrow.
   const [hasAutoClosedControlPanel, setHasAutoClosedControlPanel] = useState(false);
 
@@ -637,6 +677,18 @@ const App: React.FC<AppProps> = (props) => {
             />
           </Content>
         </Layout>
+        {hasMeasurements && (
+          <Sider
+            className="control-panel-holder"
+            collapsible={true}
+            collapsedWidth={50}
+            trigger={null}
+            collapsed={rightPanelClosed}
+            width={410}
+          >
+            <RightPanel collapsed={rightPanelClosed} setCollapsed={setRightPanelClosed} />
+          </Sider>
+        )}
       </Layout>
     </StyleProvider>
   );

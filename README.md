@@ -18,10 +18,32 @@ environment for reproducible setup:
   local `.ome.zarr.zip` files, read in-place via the engine's `ZipStore`. With
   several files you can either **overlay** their channels into one volume (same
   pixel dimensions required) or load them as switchable **scenes**, chosen from a
-  file-name dropdown. A separate **Load URL** button loads remote OME-Zarr.
+  file-name dropdown. A separate **Load URL** button loads remote OME-Zarr. When an
+  archive carries a per-object measurement table, the app also adds an interactive
+  **feature scatter** alongside the 3D view (see below).
 
 `vole-app` consumes the local `vole-core` through `"@aics/vole-core":
 "file:../vole-core"`, so the two always build together.
+
+## Feature scatter (2D)
+
+When a loaded OME-Zarr contains a `tables/measurements` group (an AnnData table
+of per-object features, e.g. an ilastik export), the viewer reads it and shows a
+**Features** tab in the control panel. The tab only appears once a table is
+detected. It holds an interactive scatter plot that reproduces — and extends —
+the old Dash viewer, entirely in the browser:
+
+- pick the **X**, **Y**, and **color-by** feature from dropdowns;
+- **click** a point or **drag a box** to select objects;
+- set per-feature **min/max gates** to dim out-of-range objects;
+- **export CSV** of the current selection, gated population, or full table.
+
+Every object is keyed by its `label_id`, and selection/gates live in shared state
+— the groundwork for the planned bidirectional link between the scatter and the
+3D view.
+
+The scatter works from any entry point that feeds the viewer a `.zip`: the main
+**Load .zip** button, or the minimal standalone picker at the `/local` route.
 
 ## Quick start
 
@@ -32,7 +54,7 @@ pixi run setup   # install deps + build vole-core + link it into vole-app
 pixi run dev     # start the dev server at http://localhost:9020
 ```
 
-Then open http://localhost:9020, click **Load**, and pick a local
+Then open http://localhost:9020, click **Load .zip**, and pick a local
 `.ome.zarr.zip`. The first three channels are enabled by default.
 
 ### Preparing a `.zip`

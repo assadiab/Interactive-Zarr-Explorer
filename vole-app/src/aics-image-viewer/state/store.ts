@@ -9,6 +9,15 @@ import { createResetSlice, type ResetStateSlice } from "./reset";
 import type { ChannelState, ViewerState } from "./types";
 import { validateState, validateStateValue } from "./util";
 
+import { createSelectionSlice, type SelectionSlice } from "./selection";   // (1)
+
+export type ViewerStore = ViewerState &
+  ViewerStateActions &
+  ResetStateSlice &
+  SelectionSlice & {                                                       // (2)
+    channelSettings: ChannelState[];
+  };
+
 export type ViewerStateActions = {
   changeViewerSetting: <K extends keyof ViewerState>(key: K, value: Partial<ViewerState[K]>) => void;
   mergeViewerSettings: (value: Partial<{ [K in keyof ViewerState]: Partial<ViewerState[K]> }>) => void;
@@ -21,14 +30,10 @@ export type ViewerStateActions = {
   applyColorPresets: (colors: ColorArray[]) => void;
 };
 
-export type ViewerStore = ViewerState &
-  ViewerStateActions &
-  ResetStateSlice & {
-    channelSettings: ChannelState[];
-  };
 
 const createViewerStateStore: StateCreator<ViewerStore> = (set, get, ...etc) => ({
   ...createResetSlice(set, get, ...etc),
+  ...createSelectionSlice(set, get, ...etc),
   ...getDefaultViewerState(),
   channelSettings: [],
 

@@ -57,6 +57,19 @@ const routes: RouteObject[] = [
     element: <LocalStorageReceiver />,
     errorElement: <ErrorPage />,
   },
+  {
+    path: "write_storage",
+    element: <LocalStorageReceiver />,
+    errorElement: <ErrorPage />,
+  },
+  {
+    path: "local",
+    lazy: async () => {
+      const LocalZipViewer = (await import("./LocalZipViewer")).default;
+      return { Component: () => <LocalZipViewer /> };
+    },
+    errorElement: <ErrorPage />,
+  },
 ];
 
 const router = createBrowserRouter(routes, { basename: basename });

@@ -1,3 +1,4 @@
+import { DotChartOutlined, HeatMapOutlined } from "@ant-design/icons";
 import { Button, Checkbox, Collapse, type CollapseProps, Dropdown, Flex, type MenuProps, Tooltip } from "antd";
 import type { MenuInfo } from "rc-menu/lib/interface";
 import React from "react";
@@ -9,7 +10,9 @@ import { select, useViewerState } from "../../state/store";
 import ChannelsWidget, { type ChannelsWidgetProps } from "../ChannelsWidget";
 import CustomizeWidget, { type CustomizeWidgetProps } from "../CustomizeWidget";
 import GlobalVolumeControls, { type GlobalVolumeControlsProps } from "../GlobalVolumeControls";
+import CorrelationPanel from "../CorrelationPanel";
 import MetadataViewer from "../MetadataViewer";
+import ScatterPanel from "../ScatterPanel";
 import ViewerIcon from "../shared/ViewerIcon";
 
 import "./styles.css";
@@ -30,12 +33,16 @@ const enum ControlTab {
   Channels,
   Advanced,
   Metadata,
+  Features,
+  Correlation,
 }
 
 const ControlTabNames = {
   [ControlTab.Channels]: "Channel settings",
   [ControlTab.Advanced]: "Advanced settings",
   [ControlTab.Metadata]: "Metadata",
+  [ControlTab.Features]: "Features",
+  [ControlTab.Correlation]: "Correlation",
 };
 
 function ControlPanel(props: ControlPanelProps): React.ReactElement {
@@ -47,6 +54,8 @@ function ControlPanel(props: ControlPanelProps): React.ReactElement {
   const resetToDefaultViewerState = useViewerState(select("resetToDefaultViewerState"));
   const singleChannelMode = useViewerState(select("singleChannelMode"));
   const changeViewerSetting = useViewerState(select("changeViewerSetting"));
+  // Only offer the Features tab once a per-object measurement table has loaded.
+  const hasMeasurements = useViewerState((state) => state.measurements !== null);
 
   const containerRef = React.useRef<HTMLDivElement>(null);
   const getDropdownContainer = (): HTMLElement => containerRef.current ?? document.body;
@@ -175,6 +184,8 @@ function ControlPanel(props: ControlPanelProps): React.ReactElement {
         {renderTab(ControlTab.Channels, <ViewerIcon type="channels" />)}
         {renderTab(ControlTab.Advanced, <ViewerIcon type="preferences" />)}
         {props.visibleControls.metadataViewer && renderTab(ControlTab.Metadata, <ViewerIcon type="metadata" />)}
+        {hasMeasurements && renderTab(ControlTab.Features, <DotChartOutlined />)}
+        {hasMeasurements && renderTab(ControlTab.Correlation, <HeatMapOutlined />)}
       </div>
       <div className="control-panel-col" style={{ flex: "0 0 450px" }}>
         <h2 className="control-panel-title">{ControlTabNames[tab]}</h2>
@@ -194,6 +205,18 @@ function ControlPanel(props: ControlPanelProps): React.ReactElement {
             )}
             {tab === ControlTab.Advanced && renderAdvancedSettings()}
             {tab === ControlTab.Metadata && <MetadataViewer metadata={props.metadata} />}
+          </div>
+        )}
+        {/* Features (scatter) and Correlation are independent of the loaded image,
+            so they render outside the hasImage gate. */}
+        {tab === ControlTab.Features && (
+          <div className="control-panel-content">
+            <ScatterPanel />
+          </div>
+        )}
+        {tab === ControlTab.Correlation && (
+          <div className="control-panel-content">
+            <CorrelationPanel />
           </div>
         )}
       </div>

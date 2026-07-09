@@ -14,8 +14,11 @@ environment for reproducible setup:
   local `.zip` `Blob`, exposed through the `zipSources` loader option.
 - **`vole-app/`** — the React app (forked from
   [allen-cell-animated/vole-app](https://github.com/allen-cell-animated/vole-app)).
-  Its home-page **Load** button opens a drag-and-drop picker for a local
-  `.ome.zarr.zip`; the file is read in-place via the engine's `ZipStore`.
+  Its home-page **Load .zip** button opens a drag-and-drop picker for **one or more**
+  local `.ome.zarr.zip` files, read in-place via the engine's `ZipStore`. With
+  several files you can either **overlay** their channels into one volume (same
+  pixel dimensions required) or load them as switchable **scenes**, chosen from a
+  file-name dropdown. A separate **Load URL** button loads remote OME-Zarr.
 
 `vole-app` consumes the local `vole-core` through `"@aics/vole-core":
 "file:../vole-core"`, so the two always build together.

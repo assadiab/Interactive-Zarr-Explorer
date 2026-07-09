@@ -24,6 +24,7 @@ type ViewerWrapperProps = {
   playingAxis: AxisName | "t" | null;
   numTimesteps: number;
   numScenes: number;
+  sceneNames?: string[];
   visibleControls: {
     axisClipSliders: boolean;
   };
@@ -83,6 +84,7 @@ const ViewerWrapper: React.FC<ViewerWrapperProps> = (props) => {
             numSlices={props.numSlices}
             numSlicesLoaded={props.numSlicesLoaded}
             numScenes={numScenes}
+            sceneNames={props.sceneNames}
             region={region}
             slices={slice}
             numTimesteps={numTimesteps}

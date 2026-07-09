@@ -1,6 +1,8 @@
 import type { AbsolutePath, AsyncReadable } from "zarrita";
 import * as zip from "@zip.js/zip.js";
 
+import { VolumeLoadError, VolumeLoadErrorType } from "../VolumeLoadError.js";
+
 // Decompress inline rather than spawning nested workers. The OME-Zarr loader
 // already runs inside a Web Worker, and nested workers are unreliable across
 // browsers. Only the DEFLATE fallback path uses zip.js decompression; STORE
@@ -13,6 +15,12 @@ const META_FILENAMES = ["zarr.json", ".zgroup", ".zattrs", ".zarray"];
 const LOCAL_HEADER_FIXED_SIZE = 30;
 const LOCAL_HEADER_SIGNATURE = 0x04034b50;
 const COMPRESSION_STORED = 0;
+
+// --- Hostile-archive safety backstops (tunable) ---
+/** Reject archives with an absurd number of entries (memory-exhaustion guard). */
+const MAX_ENTRIES = 5_000_000;
+/** No single zarr chunk or metadata file should exceed this; catches decompression bombs. */
+const MAX_ENTRY_BYTES = 1024 * 1024 * 1024; // 1 GiB
 
 /** Per-entry index record: enough to read the bytes without re-touching zip.js. */
 type IndexEntry = {
@@ -66,9 +74,38 @@ export default class ZipStore implements AsyncReadable<unknown> {
   }
 
   private async buildIndex(): Promise<Map<string, IndexEntry>> {
-    const reader = new zip.ZipReader(new zip.BlobReader(this.blob));
-    const entries = await reader.getEntries();
+    // Reading the central directory is the first thing that can fail on a hostile
+    // or truncated file. zip.js throws an opaque internal error here; convert it
+    // into a clear, typed VolumeLoadError so the app can show a useful message.
+    let entries: zip.Entry[];
+    try {
+      const reader = new zip.ZipReader(new zip.BlobReader(this.blob));
+      entries = await reader.getEntries();
+    } catch (e) {
+      throw new VolumeLoadError("Could not read the ZIP archive — the file may be corrupt or not a valid .zip.", {
+        type: VolumeLoadErrorType.LOAD_DATA_FAILED,
+        cause: e,
+      });
+    }
+    // 2a — coarse memory guard: a hostile archive could declare millions of tiny
+    // entries just to blow up the in-memory index.
+    if (entries.length > MAX_ENTRIES) {
+      throw new VolumeLoadError(
+        `This .zip declares an unreasonable number of entries (${entries.length}); refusing to index it.`,
+        { type: VolumeLoadErrorType.TOO_LARGE }
+      );
+    }
+
     const files = entries.filter((e): e is zip.FileEntry => !e.directory);
+
+    // Encrypted (password-protected) entries can't be read. On the STORE fast path
+    // a raw Blob.slice would silently hand zarrita the *encrypted* bytes, so detect
+    // it up front and fail with a clear message rather than corrupt data.
+    if (files.some((e) => e.encrypted)) {
+      throw new VolumeLoadError("This .zip is encrypted / password-protected. The viewer can only read unencrypted archives.", {
+        type: VolumeLoadErrorType.LOAD_DATA_FAILED,
+      });
+    }
 
     // Resolve each entry's *data* offset once, up front, by reading its local
     // file header. Doing it here (concurrently) means every later `get()` is a
@@ -81,7 +118,11 @@ export default class ZipStore implements AsyncReadable<unknown> {
       const located = await Promise.all(batch.map((e) => this.locateData(e)));
       batch.forEach((e, j) => {
         const loc = located[j];
-        map.set(e.filename, {
+        // Normalize path separators: the ZIP spec mandates "/", but some Windows
+        // tools write entry names with "\". zarrita always looks keys up with "/",
+        // so we key the index on the forward-slash form to work on any OS.
+        const name = e.filename.replace(/\\/g, "/");
+        map.set(name, {
           dataStart: loc.dataStart,
           compressedSize: e.compressedSize,
           method: loc.method,
@@ -90,7 +131,18 @@ export default class ZipStore implements AsyncReadable<unknown> {
       });
     }
     if (!this.prefixExplicit) {
-      this.prefix = detectZarrRootPrefix(map);
+      const detected = detectZarrRootPrefix(map);
+      if (detected === undefined) {
+        // The archive is a valid zip, but holds no zarr metadata anywhere. Other
+        // files (CSVs, etc.) alongside a zarr are fine — this only fires when there
+        // is *no* zarr group at all, so tell the user plainly.
+        throw new VolumeLoadError(
+          "This .zip does not contain an OME-Zarr dataset. Make sure you zipped a folder " +
+            "ending in .ome.zarr (with a .zgroup, .zattrs, or zarr.json inside).",
+          { type: VolumeLoadErrorType.INVALID_METADATA }
+        );
+      }
+      this.prefix = detected;
     }
     return map;
   }
@@ -128,17 +180,36 @@ export default class ZipStore implements AsyncReadable<unknown> {
       return undefined;
     }
 
-    if (record.method === COMPRESSION_STORED) {
-      // Fast path: stored uncompressed and the data offset was resolved at index
-      // build time, so this is a single, stateless `Blob.slice()` — fully
-      // parallel, no zip.js reader lock, no CRC recompute, no header re-read.
+    // 2b — zip-bomb guard: refuse to allocate for a single entry that is absurdly
+    // large. A tiny DEFLATE entry can *declare* a huge inflated size; check both the
+    // on-disk and declared-uncompressed sizes.
+    if (record.compressedSize > MAX_ENTRY_BYTES || record.entry.uncompressedSize > MAX_ENTRY_BYTES) {
+      throw new VolumeLoadError("A ZIP entry is unexpectedly large (possible zip bomb); refusing to read it.", {
+        type: VolumeLoadErrorType.TOO_LARGE,
+      });
+    }
+
+    // 2c — integrity: verify the CRC32 of the small, critical *metadata* files by
+    // reading them through zip.js. Bulk chunk data keeps the fast, unchecked STORE
+    // path for performance (documented speed/robustness trade-off).
+    const base = relKey.slice(relKey.lastIndexOf("/") + 1);
+    const isMeta = META_FILENAMES.includes(base);
+
+    if (record.method === COMPRESSION_STORED && !isMeta) {
+      // Fast path: single, stateless `Blob.slice()` — fully parallel, no zip.js
+      // reader lock, no CRC recompute. Guard against a truncated archive whose
+      // directory points past the end of the file (rather than returning short data).
+      if (record.dataStart + record.compressedSize > this.blob.size) {
+        throw new VolumeLoadError("The ZIP archive looks truncated (an entry extends past the end of the file).", {
+          type: VolumeLoadErrorType.LOAD_DATA_FAILED,
+        });
+      }
       const buf = await this.blob.slice(record.dataStart, record.dataStart + record.compressedSize).arrayBuffer();
       return new Uint8Array(buf);
     }
 
-    // Compressed entry (e.g. DEFLATE) or an unexpected local header: defer to
-    // zip.js for correct inflation.
-    return record.entry.getData(new zip.Uint8ArrayWriter());
+    // Metadata (CRC-checked) or DEFLATE entries: let zip.js read + verify the CRC32.
+    return record.entry.getData(new zip.Uint8ArrayWriter(), { checkSignature: true });
   }
 }
 
@@ -153,7 +224,7 @@ function normalizePrefix(rootPath: string): string {
  * and return it as a normalized prefix. Lets a user drop in a zip whether the
  * `.ome.zarr` is at the root or nested one level deep.
  */
-function detectZarrRootPrefix(entries: Map<string, IndexEntry>): string {
+function detectZarrRootPrefix(entries: Map<string, IndexEntry>): string | undefined {
   let best: string | undefined;
   let bestDepth = Infinity;
   for (const filename of entries.keys()) {
@@ -169,5 +240,6 @@ function detectZarrRootPrefix(entries: Map<string, IndexEntry>): string {
       best = dir;
     }
   }
-  return best ?? "";
+  // `""` means "found at the zip root"; `undefined` means "no zarr metadata at all".
+  return best;
 }

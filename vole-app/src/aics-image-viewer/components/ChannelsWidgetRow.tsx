@@ -66,6 +66,13 @@ const ChannelsWidgetRow: React.FC<ChannelsWidgetRowProps> = (props: ChannelsWidg
     [index, changeChannelSetting]
   );
 
+  // During a scene switch the channel grouping (which decides how many rows render) and `channelSettings` update in
+  // separate passes, so this row's index can momentarily point past the new, shorter settings array. Render nothing
+  // until the two are back in sync rather than crashing on an undefined channel state.
+  if (!channelState) {
+    return null;
+  }
+
   const thisChannelOnly = singleChannelMode && singleChannelIndex === index;
 
   const visibilityControls = singleChannelMode ? (

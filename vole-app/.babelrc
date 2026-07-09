@@ -1,7 +1,21 @@
 {
   "presets": [
     ["@babel/preset-env", { "modules": false }],
-    ["@dr.pogodin/babel-preset-svgr", { "icon": true }],
+    [
+      "@dr.pogodin/babel-preset-svgr",
+      {
+        // Replicate the preset's default SVGR pipeline but WITHOUT @svgr/plugin-prettier: that plugin runs prettier,
+        // which auto-loads @trivago/prettier-plugin-sort-imports (bumped to v6, top-level await) via require() and
+        // crashes the SVG loader with ERR_REQUIRE_ASYNC_MODULE. Prettier-formatting generated SVG components is
+        // cosmetic, so dropping it fixes the build. (The preset ignores an `icon` option, so it was a no-op before.)
+        "svgr": {
+          "plugins": ["@svgr/plugin-svgo", "@svgr/plugin-jsx"],
+          "svgoConfig": {
+            "plugins": [{ "name": "preset-default", "params": { "overrides": { "removeViewBox": false } } }]
+          }
+        }
+      }
+    ],
     "@babel/preset-react",
     "@babel/preset-typescript"
   ],

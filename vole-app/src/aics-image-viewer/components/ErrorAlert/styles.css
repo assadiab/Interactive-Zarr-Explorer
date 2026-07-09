@@ -51,6 +51,9 @@
   .ant-alert-message > div {
     &.error-title {
       font-weight: 600;
+      /* Slightly larger than the default (~14px) so the error is easier to read.
+         Bump to 16px for more emphasis, or remove this line to revert. */
+      font-size: 15px;
     }
 
     &.error-cause {

@@ -287,7 +287,9 @@ export default class Volume {
 
   onChannelLoaded(batch: number[]): void {
     // check to see if all channels are now loaded, and fire an event(?)
-    if (this.loadSpec.channels.every((channelIndex) => this.channels[channelIndex].loaded)) {
+    // Guard against a stale channel index: an in-flight load from a previous scene can deliver after the channel count
+    // shrank (the `Volume` is reused across scenes), leaving `this.channels[channelIndex]` undefined.
+    if (this.loadSpec.channels.every((channelIndex) => this.channels[channelIndex]?.loaded)) {
       this.loaded = true;
     }
     batch.forEach((channelIndex) => this.channelLoadCallback?.(this, channelIndex));
@@ -336,6 +338,11 @@ export default class Volume {
     dtype: NumberType = "uint8",
     time = 0
   ): void {
+    // Drop data delivered for a channel that no longer exists: a load from a previous scene can complete after the
+    // channel count shrank (the `Volume` is reused across scenes), and writing it would crash or corrupt the view.
+    if (!this.channels[channelIndex]) {
+      return;
+    }
     const { subregionSize, atlasTileDims } = this.imageInfo;
     this.channels[channelIndex].setFromVolumeData(
       volumeData,

@@ -24,7 +24,7 @@ import type { ViewerState } from "../../state/types";
 import useVolume, { ImageLoadStatus } from "../useVolume";
 import { loadMeasurements } from "../../shared/utils/loadMeasurements";
 import type { ScenePath } from "../../shared/utils/sceneStore";
-import type { AppProps, ControlVisibilityFlags, MultisceneUrls, UseImageEffectType } from "./types";
+import type { AppProps, ControlVisibilityFlags, MultisceneUrls, MultisceneZips, UseImageEffectType } from "./types";
 
 import CellViewerCanvasWrapper from "../CellViewerCanvasWrapper";
 import ControlPanel from "../ControlPanel";
@@ -117,6 +117,28 @@ const setIndicatorPositions = (
   view3d.setScaleBarPosition(scaleBarX, scaleBarY);
 };
 
+/** Normalize the flexible `zipData` prop into the scene list the loader consumes. */
+function zipDataToScenes(zipData: Blob | Blob[] | MultisceneZips, rootPath?: string): ScenePath[] {
+  // { scenes: [...] } => one scene per entry (each entry: one Blob, or an overlay of Blobs).
+  if (!(zipData instanceof Blob) && !Array.isArray(zipData)) {
+    return zipData.scenes.map((scene) => ({ zips: Array.isArray(scene) ? scene : [scene], rootPath }));
+  }
+  // A single Blob or a Blob[] => one scene (channels overlaid if several).
+  return [{ zips: Array.isArray(zipData) ? zipData : [zipData], rootPath }];
+}
+
+/** The single zip Blob to read the optional measurement table from: the first scene's first overlay. */
+function firstZipBlob(zipData: Blob | Blob[] | MultisceneZips): Blob | undefined {
+  if (zipData instanceof Blob) {
+    return zipData;
+  }
+  if (Array.isArray(zipData)) {
+    return zipData[0];
+  }
+  const first = zipData.scenes[0];
+  return Array.isArray(first) ? first[0] : first;
+}
+
 const App: React.FC<AppProps> = (props) => {
   props = { ...defaultProps, ...props };
 
@@ -173,7 +195,7 @@ const App: React.FC<AppProps> = (props) => {
     if (rawData && rawDims) {
       return [{ data: rawData, metadata: rawDims }];
     } else if (zipData) {
-      return [{ zip: zipData, rootPath: zipRootPath }];
+      return zipDataToScenes(zipData, zipRootPath);
     } else {
       const showParentImage = imageType === ImageType.fullField && parentImageUrl !== undefined;
       const path = showParentImage ? parentImageUrl : imageUrl;
@@ -189,18 +211,38 @@ const App: React.FC<AppProps> = (props) => {
     }
   }, [imageUrl, parentImageUrl, rawData, rawDims, zipData, zipRootPath, imageType]);
 
-  // Load the per-object measurement table whenever the data source is a local zip,
-  // so the Features (scatter) tab can offer it. This runs for every entry point that
-  // feeds `App` a zip (the main viewer's "Load .zip" and the standalone /local page).
-  // Cleared when the source has no zip (e.g. a URL load) so a stale table never lingers.
+  // Human-readable label per scene for the scene picker (zip file names, URLs, else "Scene N").
+  const sceneNames = useMemo(
+    (): string[] =>
+      scenes.map((s, i) => {
+        if (typeof s === "object" && !Array.isArray(s) && "zips" in s) {
+          return s.zips.map((z) => (z as File).name || `Scene ${i + 1}`).join(" + ");
+        }
+        if (typeof s === "string") {
+          return s;
+        }
+        if (Array.isArray(s)) {
+          return s.join(", ");
+        }
+        return `Scene ${i + 1}`;
+      }),
+    [scenes]
+  );
+
+  // Load the per-object measurement table whenever the data source is a local zip, so the Features
+  // (scatter) tab can offer it. `zipData` may be one Blob, several overlaid Blobs, or multiple scenes;
+  // read the table from the first zip. Runs for every entry point that feeds `App` a zip (the main
+  // viewer's "Load .zip" and the standalone /local page). Cleared when the source has no zip (e.g. a
+  // URL load) so a stale table never lingers.
   useEffect(() => {
-    if (!zipData) {
+    const measurementZip = zipData && firstZipBlob(zipData);
+    if (!measurementZip) {
       useViewerState.getState().setMeasurements(null);
       return;
     }
     let cancelled = false;
     (async () => {
-      const table = await loadMeasurements(new ZipStore(zipData));
+      const table = await loadMeasurements(new ZipStore(measurementZip));
       if (!cancelled) {
         useViewerState.getState().setMeasurements(table);
       }
@@ -385,7 +427,9 @@ const App: React.FC<AppProps> = (props) => {
   const { image, setTime, setScene } = volume;
 
   const hasRawImage = !!(props.rawData && props.rawDims);
-  const numScenes = hasRawImage ? 1 : ((props.imageUrl as MultisceneUrls).scenes?.length ?? 1);
+  // `scenes` is the single source of truth for how many volumes we can browse
+  // (it already accounts for URL scenes and multi-scene zips).
+  const numScenes = hasRawImage ? 1 : scenes.length;
   const numSlices: PerAxis<number> = image?.imageInfo.volumeSize ?? { x: 1, y: 1, z: 1 };
   const numSlicesLoaded: PerAxis<number> = image?.imageInfo.subregionSize ?? { x: 0, y: 0, z: 0 };
   const numTimesteps = image?.imageInfo.times ?? 1;
@@ -623,6 +667,7 @@ const App: React.FC<AppProps> = (props) => {
               numSlicesLoaded={numSlicesLoaded}
               numTimesteps={numTimesteps}
               numScenes={numScenes}
+              sceneNames={sceneNames}
               playControls={volume.playControls}
               playingAxis={volume.playingAxis}
               appHeight={props.appHeight}

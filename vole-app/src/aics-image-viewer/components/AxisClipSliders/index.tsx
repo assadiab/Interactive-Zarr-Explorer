@@ -1,6 +1,6 @@
 import type { Volume } from "@aics/vole-core";
 import { CaretRightOutlined, PauseOutlined } from "@ant-design/icons";
-import { Button, Tooltip } from "antd";
+import { Button, Select, Tooltip } from "antd";
 import React, { useCallback, useEffect, useState } from "react";
 
 import type { ViewMode } from "../../shared/enums";
@@ -179,6 +179,8 @@ type AxisClipSlidersProps = {
   numSlices: PerAxis<number>;
   numSlicesLoaded: PerAxis<number>;
   numScenes: number;
+  /** Optional human-readable name per scene (e.g. zip file names); falls back to "Scene N". */
+  sceneNames?: string[];
   region: PerAxis<[number, number]>;
   slices: PerAxis<number>;
   numTimesteps: number;
@@ -306,14 +308,17 @@ const AxisClipSliders: React.FC<AxisClipSlidersProps> = (props) => {
           <h4 className="slider-group-title">Scene</h4>
           <span className="slider-group-rows">
             <div className="slider-row slider-scene">
-              <SliderRow
-                label={""}
-                vals={[props.scene]}
-                max={props.numScenes}
-                onChange={([scene]) => {
+              <Select
+                style={{ width: "100%" }}
+                value={props.scene}
+                onChange={(scene: number) => {
                   props.changeViewerSetting("scene", scene);
                   props.changeViewerSetting("useExactScaleLevel", false);
                 }}
+                options={Array.from({ length: props.numScenes }, (_, i) => ({
+                  value: i,
+                  label: props.sceneNames?.[i] ?? `Scene ${i + 1}`,
+                }))}
               />
             </div>
           </span>

@@ -32,6 +32,13 @@ export type ControlVisibilityFlags = { [K in ControlNames]: boolean };
 
 export type MultisceneUrls = { scenes: (string | string[])[] };
 
+/**
+ * Local-zip equivalent of {@link MultisceneUrls}. Each scene is one `Blob` (single
+ * volume) or an array of `Blob`s (their channels appended into one volume). Mirrors
+ * the comma/plus URL semantics: `Blob[]` = overlay (`,`), `scenes` = multiple (`+`).
+ */
+export type MultisceneZips = { scenes: (Blob | Blob[])[] };
+
 export interface AppProps {
   // FIRST WAY TO GET DATA INTO THE VIEWER: pass in volume data directly
 
@@ -58,9 +65,12 @@ export interface AppProps {
    * `imageUrl` when set. The zip is read in-place with lazy per-chunk access —
    * no HTTP server and no full extraction. Prefer zipping in STORE mode so the
    * already-compressed Zarr chunks aren't double-compressed.
+   *
+   * Pass a single `Blob` for one volume, a `Blob[]` to overlay several same-sized
+   * zarrs' channels in one volume, or a {@link MultisceneZips} for multiple scenes.
    */
-  zipData?: Blob;
-  /** Path to the zarr group inside the zip. Omit to auto-detect. */
+  zipData?: Blob | Blob[] | MultisceneZips;
+  /** Path to the zarr group inside each zip. Omit to auto-detect. */
   zipRootPath?: string;
 
   viewerChannelSettings?: ViewerChannelSettings;

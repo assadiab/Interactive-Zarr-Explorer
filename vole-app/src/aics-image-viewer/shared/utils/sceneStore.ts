@@ -16,11 +16,13 @@ export type LoadSceneOptions = {
 };
 
 /**
- * A local OME-Zarr packaged as a `.zip` Blob/File. Read in-place with lazy
- * per-chunk access (no server, no full extraction). `rootPath` points at the
- * zarr group inside the zip; omit it to auto-detect.
+ * One scene made of one or more local OME-Zarr `.zip` Blobs, read in-place with
+ * lazy per-chunk access (no server, no full extraction). When `zips` holds more
+ * than one blob, their channels are appended into a single volume (they must
+ * share the same pixel dimensions). `rootPath` points at the zarr group inside
+ * each zip; omit it to auto-detect.
  */
-export type ZipSource = { zip: Blob; rootPath?: string };
+export type ZipSource = { zips: Blob[]; rootPath?: string };
 
 export type ScenePath = string | string[] | RawArrayLoaderOptions | ZipSource;
 
@@ -47,9 +49,12 @@ export default class SceneStore {
       let path = this.paths[scene];
       let options: Partial<CreateLoaderOptions> = {};
       if (typeof path === "object" && !Array.isArray(path)) {
-        if ("zip" in path) {
-          // Local OME-Zarr in a .zip: read in-place, lazily, no server.
-          options.zipSources = [{ data: path.zip, rootPath: path.rootPath }];
+        if ("zips" in path) {
+          // Local OME-Zarr in one or more .zips: read in-place, lazily, no server.
+          // Multiple zips => their channels are appended into a single volume.
+          // Destructure before reassigning `path` below, so the narrowed type is kept.
+          const { zips, rootPath } = path;
+          options.zipSources = zips.map((zip) => ({ data: zip, rootPath }));
           options.fileType = VolumeFileFormat.ZARR;
           path = "local.zip"; // logical label only; never fetched
         } else {
@@ -84,6 +89,15 @@ export default class SceneStore {
       channels: spec.channels?.filter((channelIndex) => channelIndex < imageInfo.channelNames.length),
       time: Math.min(spec.time, maxTime),
     };
+
+    // The same `Volume` is reused across scenes, so bring its "required data" spec in line with the scene we're
+    // switching to. Otherwise a later partial reload (e.g. toggling a channel) reuses `loadSpecRequired` and can request
+    // a time index or channel that doesn't exist in this scene, throwing an out-of-bounds error mid-view.
+    image.loadSpecRequired.time = adjustedSpec.time;
+    image.loadSpec.time = adjustedSpec.time;
+    image.loadSpecRequired.channels = image.loadSpecRequired.channels.filter(
+      (channelIndex) => channelIndex < imageInfo.channelNames.length
+    );
 
     options?.onCreateScene?.(image, scene, adjustedSpec);
     loader.loadVolumeData(image, adjustedSpec, options?.onChannelLoaded);

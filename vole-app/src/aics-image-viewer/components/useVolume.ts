@@ -211,28 +211,59 @@ const useVolume = (
     [channelVersionsRef, onChannelLoadedRef, playControls, setChannelVersions]
   );
 
-  const setChannelStateForNewImage = useCallback(
-    (channelNames: string[]): ChannelState[] => {
-      const { useDefaultViewerChannelSettings } = useViewerState.getState();
+  // Per-scene channel settings. Scenes can be entirely unrelated volumes (different channels, dtypes, dimensions), so
+  // each one keeps its own settings: edits (enabled, color, LUT, ...) are saved when leaving a scene and restored when
+  // returning to it, instead of bleeding across scenes or being reset on every switch. Keyed by scene index.
+  const channelSettingsBySceneRef = useRef<Map<number, ChannelState[]>>(new Map());
+  // The scene whose settings currently live in the store; `null` until the first scene has loaded.
+  const loadedSceneRef = useRef<number | null>(null);
+
+  /** Save the store's current channel settings under the currently-loaded scene, so we can restore them later. */
+  const persistCurrentSceneSettings = useCallback((): void => {
+    if (loadedSceneRef.current !== null) {
+      channelSettingsBySceneRef.current.set(loadedSceneRef.current, useViewerState.getState().channelSettings);
+    }
+  }, []);
+
+  /**
+   * Install the channel settings for the scene we're switching to. If we've visited this scene before (and its channel
+   * names still match), restore the saved settings; otherwise initialize fresh defaults. Returns the settings plus a
+   * `restored` flag so the caller can avoid re-initializing LUTs (which would clobber the user's saved edits).
+   */
+  const applyChannelSettingsForScene = useCallback(
+    (sceneIndex: number, channelNames: string[]): { channelSettings: ChannelState[]; restored: boolean } => {
+      const { useDefaultViewerChannelSettings, replaceAllChannelSettings } = useViewerState.getState();
       const viewerChannelSettings = useDefaultViewerChannelSettings
         ? getDefaultViewerChannelSettings()
         : options?.viewerChannelSettings;
-      const grouping = makeChannelIndexGrouping(channelNames, viewerChannelSettings);
-      setChannelGroupedByType(grouping);
+      setChannelGroupedByType(makeChannelIndexGrouping(channelNames, viewerChannelSettings));
 
-      return initChannelSettings(channelNames, viewerChannelSettings);
+      const saved = channelSettingsBySceneRef.current.get(sceneIndex);
+      const canRestore =
+        !!saved && saved.length === channelNames.length && saved.every((s, i) => s.name === channelNames[i]);
+      if (canRestore) {
+        replaceAllChannelSettings(saved!);
+        return { channelSettings: saved!, restored: true };
+      }
+
+      // Fresh scene: clear the store first so a shorter/different scene can't inherit the outgoing scene's settings by
+      // index (`initChannelSettings` reuses same-index entries, which is only correct within a single scene).
+      replaceAllChannelSettings([]);
+      return { channelSettings: initChannelSettings(channelNames, viewerChannelSettings), restored: false };
     },
     [initChannelSettings, options?.viewerChannelSettings]
   );
 
-  // effect to start the initial load of the image
-  useEffect(() => {
-    setChannelVersions(new Array(channelVersionsRef.current.length).fill(CHANNEL_INITIAL_LOAD));
-    setLoadThrewError(false);
-    inInitialLoadRef.current = true;
+  /**
+   * Load `scene` as a brand-new `Volume` and swap it into the view. Building a fresh volume per scene (rather than
+   * re-tasking one shared volume) keeps scenes isolated: a late in-flight chunk from a previously-viewed scene lands on
+   * the old, now-removed volume instead of bleeding into the one currently on screen.
+   */
+  const loadSceneVolume = useCallback(
+    async (scene: number): Promise<void> => {
+      setLoadThrewError(false);
+      inInitialLoadRef.current = true;
 
-    const openImage = async (): Promise<void> => {
-      const scene = useViewerState.getState().scene;
       const time = useViewerState.getState().time;
 
       const loadSpec = new LoadSpec();
@@ -241,11 +272,15 @@ const useVolume = (
       const aimg = await sceneLoader.createVolume(scene, loadSpec, onChannelDataLoaded).catch(onError);
 
       const channelNames = aimg.imageInfo.channelNames;
-      const newChannelSettings = setChannelStateForNewImage(channelNames);
+      const { channelSettings: newChannelSettings, restored } = applyChannelSettingsForScene(scene, channelNames);
+      loadedSceneRef.current = scene;
 
-      setChannelVersions(new Array(channelNames.length).fill(CHANNEL_INITIAL_LOAD));
+      // A restored scene keeps its saved LUTs, so mark its channels as reloading (not initial) to stop the app from
+      // re-initializing them; a fresh scene initializes its LUTs on first load as usual.
+      setChannelVersions(new Array(channelNames.length).fill(restored ? CHANNEL_RELOAD : CHANNEL_INITIAL_LOAD));
       setImage(aimg);
 
+      // Removes the previous scene's volume from the view and adds this one, so only one scene is ever rendered.
       onCreateImageRef(aimg);
 
       playControls.stepAxis = (axis: AxisName | "t") => {
@@ -301,26 +336,28 @@ const useVolume = (
       // initiate loading only after setting up new channel settings,
       // in case the loader callback fires before the state is set
       sceneLoader.loadScene(scene, aimg, requiredLoadSpec, { onCreateScene: onChangeSceneRef }).catch(onError);
-    };
+    },
+    [
+      sceneLoader,
+      onError,
+      onCreateImageRef,
+      onChangeSceneRef,
+      setChannelVersions,
+      playControls,
+      onChannelDataLoaded,
+      changeViewerSetting,
+      applyChannelSettingsForScene,
+      options?.viewerChannelSettings,
+    ]
+  );
 
-    openImage();
-  }, [
-    sceneLoader,
-    onError,
-    onCreateImageRef,
-    onChangeSceneRef,
-    onChannelLoadedRef,
-    channelVersionsRef,
-    setChannelVersions,
-    playControls,
-    setIsLoading,
-    onChannelDataLoaded,
-    changeViewerSetting,
-    initChannelSettings,
-    setChannelStateForNewImage,
-    options?.viewerChannelSettings,
-  ]);
-  // of the above dependencies, we expect only `sceneLoader` to change.
+  // Start the initial load whenever a new set of scenes is loaded (`sceneLoader` changes => `loadSceneVolume` changes).
+  useEffect(() => {
+    // A brand-new set of scenes was loaded, so any saved per-scene settings from the previous dataset are stale.
+    channelSettingsBySceneRef.current.clear();
+    loadedSceneRef.current = null;
+    loadSceneVolume(useViewerState.getState().scene);
+  }, [loadSceneVolume]);
 
   const setTime = useCallback(
     (view3d: View3d, time: number): void => {
@@ -334,40 +371,17 @@ const useVolume = (
 
   const setScene = useCallback(
     (scene: number): void => {
-      if (image && !inInitialLoadRef.current) {
-        const onCreateScene = (volume: Volume, sceneIndex: number, loadSpec: LoadSpec): void => {
-          setChannelStateForNewImage(volume.imageInfo.channelNames);
-          volume.updateChannelCount();
-
-          const prevChannelVersions = channelVersionsRef.current;
-          let newChannelVersions: number[];
-
-          const addedChannelCount = volume.imageInfo.numChannels - prevChannelVersions.length;
-          if (addedChannelCount > 0) {
-            newChannelVersions = prevChannelVersions.concat(Array(addedChannelCount).fill(CHANNEL_INITIAL_LOAD));
-          } else {
-            newChannelVersions = prevChannelVersions.slice(0, volume.imageInfo.numChannels);
-          }
-
-          setChannelVersions(newChannelVersions);
-
-          onChangeSceneRef(volume, sceneIndex, loadSpec);
-        };
-
-        sceneLoader.loadScene(scene, image, undefined, { onCreateScene }).catch(onError);
-        setIsLoading(LoadType.SCENE);
+      if (image && !inInitialLoadRef.current && scene !== loadedSceneRef.current) {
+        // Stop playback before switching: the target scene may have fewer (or no) timesteps, and letting the play loop
+        // keep advancing time would request an out-of-range frame on the new scene.
+        playControls.pause();
+        // Snapshot the scene we're leaving so the user's edits are there when they come back.
+        persistCurrentSceneSettings();
+        // Load the target scene as its own fresh volume (see `loadSceneVolume`) so scenes stay visually isolated.
+        loadSceneVolume(scene);
       }
     },
-    [
-      image,
-      sceneLoader,
-      onError,
-      setIsLoading,
-      setChannelStateForNewImage,
-      channelVersionsRef,
-      setChannelVersions,
-      onChangeSceneRef,
-    ]
+    [image, playControls, persistCurrentSceneSettings, loadSceneVolume]
   );
 
   return useMemo(

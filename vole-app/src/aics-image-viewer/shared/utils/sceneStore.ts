@@ -90,6 +90,15 @@ export default class SceneStore {
       time: Math.min(spec.time, maxTime),
     };
 
+    // The same `Volume` is reused across scenes, so bring its "required data" spec in line with the scene we're
+    // switching to. Otherwise a later partial reload (e.g. toggling a channel) reuses `loadSpecRequired` and can request
+    // a time index or channel that doesn't exist in this scene, throwing an out-of-bounds error mid-view.
+    image.loadSpecRequired.time = adjustedSpec.time;
+    image.loadSpec.time = adjustedSpec.time;
+    image.loadSpecRequired.channels = image.loadSpecRequired.channels.filter(
+      (channelIndex) => channelIndex < imageInfo.channelNames.length
+    );
+
     options?.onCreateScene?.(image, scene, adjustedSpec);
     loader.loadVolumeData(image, adjustedSpec, options?.onChannelLoaded);
   }

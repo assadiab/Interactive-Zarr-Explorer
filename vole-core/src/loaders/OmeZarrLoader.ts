@@ -269,10 +269,12 @@ class OMEZarrLoader extends ThreadableVolumeLoader {
     const lastSrc = this.sources[lastSrcIdx];
     const lastSrcNumChannels = lastSrc.scaleLevels[0].shape[lastSrc.axesTCZYX[1]];
 
-    const maxChannelIndex = lastSrc.channelOffset + lastSrcNumChannels;
-    if (absoluteChannelIndex > maxChannelIndex) {
+    const channelCount = lastSrc.channelOffset + lastSrcNumChannels;
+    // Valid absolute indices are 0..channelCount-1, so reject anything >= channelCount (a `>` test would let the
+    // one-past-the-end index slip through and fail later with an opaque zarrita out-of-bounds error).
+    if (absoluteChannelIndex < 0 || absoluteChannelIndex >= channelCount) {
       throw new VolumeLoadError(
-        `Volume channel index ${absoluteChannelIndex} out of range (${maxChannelIndex} channels available)`,
+        `Volume channel index ${absoluteChannelIndex} out of range (${channelCount} channels available)`,
         { type: VolumeLoadErrorType.INVALID_METADATA }
       );
     }
@@ -546,7 +548,11 @@ class OMEZarrLoader extends ThreadableVolumeLoader {
     onUpdateMetadata(updatedImageInfo);
     const { numChannelsPerSource, multiscaleLevel } = updatedImageInfo;
     const combinedNumChannels = numChannelsPerSource.reduce((a, b) => a + b, 0);
-    const channelIndexes = loadSpec.channels ?? Array.from({ length: combinedNumChannels }, (_, i) => i);
+    const requestedChannels = loadSpec.channels ?? Array.from({ length: combinedNumChannels }, (_, i) => i);
+    // A load spec may carry channel indices from a previously-loaded volume with more channels (e.g. when switching
+    // between scenes of different channel counts). Drop any index that does not exist in this volume so a single stale
+    // index cannot reject the whole `Promise.all` below and abort the entire scene load.
+    const channelIndexes = requestedChannels.filter((ch) => ch >= 0 && ch < combinedNumChannels);
 
     const subscriber = this.requestQueue.addSubscriber();
 

@@ -13,6 +13,17 @@ import MiddleTruncatedText from "../MiddleTruncatedText";
 
 const MAX_RECENT_URLS_TO_DISPLAY = 20;
 
+/** Segmented toggle whose selected option uses the app's purple accent instead of Ant's default grey. */
+const SceneModeToggle = styled.div`
+  .ant-segmented-item-selected {
+    background-color: var(--color-button-primary-bg);
+    color: var(--color-button-primary-text);
+  }
+  .ant-segmented-thumb {
+    background-color: var(--color-button-primary-bg);
+  }
+`;
+
 /** Which data source this Load button handles. */
 type LoadMode = "url" | "zip";
 
@@ -67,7 +78,9 @@ export default function LoadModal(props: LoadModalProps): ReactElement {
   const [urlInput, setUrlInput] = useState("");
   const [zipFiles, setZipFiles] = useState<RcFile[]>([]);
   // true = overlay all zips' channels into one volume (","); false = one scene per zip ("+").
-  const [overlay, setOverlay] = useState(true);
+  // Default to separate scenes: it works for any set of zips, whereas overlay requires identical pixel dimensions
+  // and fails loudly otherwise. Users opt into overlay explicitly via the segmented control.
+  const [overlay, setOverlay] = useState(false);
   const [errorText, setErrorText] = useState<string>("");
 
   const [recentDataUrls, addRecentDataUrl] = useRecentDataUrls();
@@ -77,7 +90,7 @@ export default function LoadModal(props: LoadModalProps): ReactElement {
     if (show) {
       setUrlInput("");
       setZipFiles([]);
-      setOverlay(true);
+      setOverlay(false);
       setErrorText("");
     }
     setShowModalState(show);
@@ -181,11 +194,11 @@ export default function LoadModal(props: LoadModalProps): ReactElement {
               <p className="ant-upload-text">Click or drag one or more .zip files here</p>
             </Upload.Dragger>
             {zipFiles.length > 1 && (
-              <div style={{ marginTop: 12 }}>
+              <SceneModeToggle style={{ marginTop: 12 }}>
                 <Segmented
                   options={[
-                    { label: "Overlay channels", value: "overlay" },
                     { label: "Separate scenes", value: "scenes" },
+                    { label: "Overlay channels", value: "overlay" },
                   ]}
                   value={overlay ? "overlay" : "scenes"}
                   onChange={(v) => setOverlay(v === "overlay")}
@@ -197,7 +210,7 @@ export default function LoadModal(props: LoadModalProps): ReactElement {
                       : "Scenes: load each zip as its own volume, switchable in the viewer."}
                   </i>
                 </p>
-              </div>
+              </SceneModeToggle>
             )}
             <FlexRow $gap={6} style={{ marginTop: 16, justifyContent: "flex-end" }}>
               <Button type="primary" onClick={onClickLoadZip} disabled={zipFiles.length === 0}>

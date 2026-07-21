@@ -33,6 +33,7 @@ import RightPanel from "../RightPanel";
 import { useErrorAlert } from "../ErrorAlert";
 import StyleProvider from "../StyleProvider";
 import Toolbar from "../Toolbar";
+import ObjectPicker from "../ObjectPicker";
 import TracksUpdater from "../TracksUpdater";
 import ChannelUpdater from "./ChannelUpdater";
 
@@ -651,6 +652,7 @@ const App: React.FC<AppProps> = (props) => {
           />
         ))}
         <TracksUpdater view3d={view3d} image={image} />
+        <ObjectPicker view3d={view3d} image={image} />
         <Sider
           className="control-panel-holder"
           collapsible={true}

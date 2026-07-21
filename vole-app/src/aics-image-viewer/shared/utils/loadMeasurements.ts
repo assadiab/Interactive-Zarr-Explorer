@@ -2,9 +2,16 @@ import * as zarr from "zarrita";
 import type { Readable } from "@zarrita/storage";
 
 import type { MeasurementTable } from "../../state/selection";
+import { makeObjectKey, type ObjectKey } from "./objectKey";
 
 /** Any zarrita-compatible store (FetchStore for URLs, ZipStore for local zips). */
 type ZarrStore = Readable;
+
+/**
+ * Feature columns that may hold the timepoint of each row, in priority order. The pipeline writes `timestep`; the
+ * others cover tables produced by ilastik or other tools.
+ */
+const FRAME_COLUMNS = ["timestep", "frame", "t", "time"];
 
 /**
  * Read the OME-Zarr `tables/measurements` group (written by the pipeline as an
@@ -66,9 +73,14 @@ export async function loadMeasurements(
     }
   }
 
-  // 4. label_id -> row index, for O(1) lookup on a pick.
-  const index = new Map<number, number>();
-  labelIds.forEach((id, row) => index.set(id, row));
+  // 4. Per-row frame. Segmentation label ids are numbered per timepoint, so a label id alone does not identify an
+  // object across time (see `objectKey`). The frame lives in a numeric column, which AnnData stores in `X` — hence we
+  // look it up among the features rather than in `obs`. Tables without any of these columns are single-frame.
+  const frames = FRAME_COLUMNS.map((name) => features[name]).find((column) => column !== undefined) ?? null;
 
-  return { labelIds, features, index };
+  // 5. (frame, label_id) -> row index, for O(1) lookup on a pick.
+  const index = new Map<ObjectKey, number>();
+  labelIds.forEach((id, row) => index.set(makeObjectKey(frames ? frames[row] : 0, id), row));
+
+  return { labelIds, frames, features, index };
 }

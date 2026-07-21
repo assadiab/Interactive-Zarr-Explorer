@@ -42,11 +42,21 @@ export type AnnotationLabel = {
   ids: Set<number>;
 };
 
+/** How the tracking overlay is drawn. Lives in the store so the panel and the 3D updater stay in sync. */
+export type TrackDisplaySettings = {
+  showTracks: boolean;
+  showDetections: boolean;
+  /** Frames of trailing trajectory to draw; `Infinity` draws the whole history up to the current frame. */
+  tailLength: number;
+};
+
 export type SelectionState = {
   /** The measurement table for the current scene, or null until loaded. */
   measurements: MeasurementTable | null;
   /** Parsed tracking result (trajectories over time), or null when none is loaded. */
   tracking: TrackingData | null;
+  /** Display options for the tracking overlay. */
+  trackSettings: TrackDisplaySettings;
   /** Currently selected object label_ids (shared across scatter / 3D / slices). */
   selectedIds: Set<number>;
   /** Feature whose value colors the scatter points, or null for a flat color. */
@@ -61,6 +71,8 @@ export type SelectionActions = {
   setMeasurements: (table: MeasurementTable | null) => void;
   /** Set (or clear, with null) the tracking result to overlay on the volume. */
   setTracking: (tracking: TrackingData | null) => void;
+  /** Update one or more tracking display options. */
+  setTrackSettings: (settings: Partial<TrackDisplaySettings>) => void;
   setSelectedIds: (ids: Iterable<number>) => void;
   toggleId: (id: number) => void;
   clearSelection: () => void;
@@ -86,6 +98,7 @@ export type SelectionSlice = SelectionState & SelectionActions;
 const defaultSelectionState: SelectionState = {
   measurements: null,
   tracking: null,
+  trackSettings: { showTracks: true, showDetections: true, tailLength: Infinity },
   selectedIds: new Set<number>(),
   colorByFeature: null,
   gates: [],
@@ -100,6 +113,8 @@ export const createSelectionSlice: StateCreator<ViewerStore, [], [], SelectionSl
     set({ measurements: table, selectedIds: new Set<number>(), gates: [], labels: [], colorByFeature: null }),
 
   setTracking: (tracking) => set({ tracking }),
+
+  setTrackSettings: (settings) => set(({ trackSettings }) => ({ trackSettings: { ...trackSettings, ...settings } })),
 
   setSelectedIds: (ids) => set({ selectedIds: new Set<number>(ids) }),
 

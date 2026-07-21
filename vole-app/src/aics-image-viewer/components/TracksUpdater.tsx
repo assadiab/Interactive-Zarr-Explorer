@@ -5,12 +5,6 @@ import { useEffect, useRef } from "react";
 import { select, useViewerState } from "../state/store";
 import { TracksOverlay } from "../shared/utils/tracksOverlay";
 
-/**
- * Number of trailing frames of each track to show. `Infinity` draws the whole trajectory up to the current frame
- * (a growing track); a finite value gives napari's fading "tail". Will become a user control in a later step.
- */
-const TRACK_TAIL_LENGTH = Infinity;
-
 interface TracksUpdaterProps {
   view3d: View3d;
   image: Volume | null;
@@ -23,6 +17,7 @@ interface TracksUpdaterProps {
 const TracksUpdater: React.FC<TracksUpdaterProps> = ({ view3d, image }) => {
   const tracking = useViewerState(select("tracking"));
   const time = useViewerState(select("time"));
+  const { showTracks, showDetections, tailLength } = useViewerState(select("trackSettings"));
   const overlayRef = useRef<TracksOverlay | null>(null);
 
   // (Re)build the overlay when the tracking data or the volume it maps onto changes.
@@ -33,7 +28,9 @@ const TracksUpdater: React.FC<TracksUpdaterProps> = ({ view3d, image }) => {
     if (tracking && image) {
       const overlay = new TracksOverlay(tracking, image);
       overlay.addTo(view3d);
-      overlay.setTime(useViewerState.getState().time, TRACK_TAIL_LENGTH);
+      const { time: t, trackSettings } = useViewerState.getState();
+      overlay.setVisible(trackSettings.showTracks, trackSettings.showDetections);
+      overlay.setTime(t, trackSettings.tailLength);
       overlayRef.current = overlay;
     }
 
@@ -43,10 +40,15 @@ const TracksUpdater: React.FC<TracksUpdaterProps> = ({ view3d, image }) => {
     };
   }, [tracking, image, view3d]);
 
-  // Advance the tail as time changes (no rebuild).
+  // Advance the tail as time (or the tail length) changes — no rebuild needed.
   useEffect(() => {
-    overlayRef.current?.setTime(time, TRACK_TAIL_LENGTH);
-  }, [time]);
+    overlayRef.current?.setTime(time, tailLength);
+  }, [time, tailLength]);
+
+  // Toggle the two layers independently.
+  useEffect(() => {
+    overlayRef.current?.setVisible(showTracks, showDetections);
+  }, [showTracks, showDetections]);
 
   return null;
 };

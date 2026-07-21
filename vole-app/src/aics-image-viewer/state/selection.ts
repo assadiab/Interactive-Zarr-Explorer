@@ -48,6 +48,10 @@ export type TrackDisplaySettings = {
   showDetections: boolean;
   /** Frames of trailing trajectory to draw; `Infinity` draws the whole history up to the current frame. */
   tailLength: number;
+  /** Trajectory line opacity, in [0, 1]. */
+  opacity: number;
+  /** Trajectory line width, in screen pixels. */
+  lineWidth: number;
 };
 
 export type SelectionState = {
@@ -57,6 +61,8 @@ export type SelectionState = {
   tracking: TrackingData | null;
   /** Display options for the tracking overlay. */
   trackSettings: TrackDisplaySettings;
+  /** Track singled out for inspection (dims the others), or null when none is selected. */
+  selectedTrackId: number | null;
   /** Currently selected object label_ids (shared across scatter / 3D / slices). */
   selectedIds: Set<number>;
   /** Feature whose value colors the scatter points, or null for a flat color. */
@@ -73,6 +79,8 @@ export type SelectionActions = {
   setTracking: (tracking: TrackingData | null) => void;
   /** Update one or more tracking display options. */
   setTrackSettings: (settings: Partial<TrackDisplaySettings>) => void;
+  /** Single out a track for inspection, or pass null to clear. */
+  setSelectedTrackId: (trackId: number | null) => void;
   setSelectedIds: (ids: Iterable<number>) => void;
   toggleId: (id: number) => void;
   clearSelection: () => void;
@@ -98,7 +106,8 @@ export type SelectionSlice = SelectionState & SelectionActions;
 const defaultSelectionState: SelectionState = {
   measurements: null,
   tracking: null,
-  trackSettings: { showTracks: true, showDetections: true, tailLength: Infinity },
+  trackSettings: { showTracks: true, showDetections: true, tailLength: Infinity, opacity: 1, lineWidth: 2 },
+  selectedTrackId: null,
   selectedIds: new Set<number>(),
   colorByFeature: null,
   gates: [],
@@ -112,7 +121,10 @@ export const createSelectionSlice: StateCreator<ViewerStore, [], [], SelectionSl
     // New table => previous selection / gates / labels no longer apply.
     set({ measurements: table, selectedIds: new Set<number>(), gates: [], labels: [], colorByFeature: null }),
 
-  setTracking: (tracking) => set({ tracking }),
+  // A new tracking result invalidates any track singled out from the previous one.
+  setTracking: (tracking) => set({ tracking, selectedTrackId: null }),
+
+  setSelectedTrackId: (trackId) => set({ selectedTrackId: trackId }),
 
   setTrackSettings: (settings) => set(({ trackSettings }) => ({ trackSettings: { ...trackSettings, ...settings } })),
 

@@ -17,7 +17,8 @@ interface TracksUpdaterProps {
 const TracksUpdater: React.FC<TracksUpdaterProps> = ({ view3d, image }) => {
   const tracking = useViewerState(select("tracking"));
   const time = useViewerState(select("time"));
-  const { showTracks, showDetections, tailLength } = useViewerState(select("trackSettings"));
+  const { showTracks, showDetections, tailLength, opacity, lineWidth } = useViewerState(select("trackSettings"));
+  const selectedTrackId = useViewerState(select("selectedTrackId"));
   const overlayRef = useRef<TracksOverlay | null>(null);
 
   // (Re)build the overlay when the tracking data or the volume it maps onto changes.
@@ -28,9 +29,14 @@ const TracksUpdater: React.FC<TracksUpdaterProps> = ({ view3d, image }) => {
     if (tracking && image) {
       const overlay = new TracksOverlay(tracking, image);
       overlay.addTo(view3d);
-      const { time: t, trackSettings } = useViewerState.getState();
+      const { time: t, trackSettings, selectedTrackId: selected } = useViewerState.getState();
       overlay.setVisible(trackSettings.showTracks, trackSettings.showDetections);
+      overlay.setOpacity(trackSettings.opacity);
+      overlay.setLineWidth(trackSettings.lineWidth);
       overlay.setTime(t, trackSettings.tailLength);
+      if (selected !== null) {
+        overlay.setSelectedTrack(selected);
+      }
       overlayRef.current = overlay;
     }
 
@@ -49,6 +55,17 @@ const TracksUpdater: React.FC<TracksUpdaterProps> = ({ view3d, image }) => {
   useEffect(() => {
     overlayRef.current?.setVisible(showTracks, showDetections);
   }, [showTracks, showDetections]);
+
+  // Line style.
+  useEffect(() => {
+    overlayRef.current?.setOpacity(opacity);
+    overlayRef.current?.setLineWidth(lineWidth);
+  }, [opacity, lineWidth]);
+
+  // Single out the inspected track (dims the others).
+  useEffect(() => {
+    overlayRef.current?.setSelectedTrack(selectedTrackId);
+  }, [selectedTrackId]);
 
   return null;
 };

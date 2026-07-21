@@ -1,5 +1,6 @@
 import type { StateCreator } from "zustand";
 
+import type { TrackingData } from "../shared/utils/loadTracks";
 import type { ViewerStore } from "./store";
 
 /**
@@ -44,6 +45,8 @@ export type AnnotationLabel = {
 export type SelectionState = {
   /** The measurement table for the current scene, or null until loaded. */
   measurements: MeasurementTable | null;
+  /** Parsed tracking result (trajectories over time), or null when none is loaded. */
+  tracking: TrackingData | null;
   /** Currently selected object label_ids (shared across scatter / 3D / slices). */
   selectedIds: Set<number>;
   /** Feature whose value colors the scatter points, or null for a flat color. */
@@ -56,6 +59,8 @@ export type SelectionState = {
 
 export type SelectionActions = {
   setMeasurements: (table: MeasurementTable | null) => void;
+  /** Set (or clear, with null) the tracking result to overlay on the volume. */
+  setTracking: (tracking: TrackingData | null) => void;
   setSelectedIds: (ids: Iterable<number>) => void;
   toggleId: (id: number) => void;
   clearSelection: () => void;
@@ -80,6 +85,7 @@ export type SelectionSlice = SelectionState & SelectionActions;
 
 const defaultSelectionState: SelectionState = {
   measurements: null,
+  tracking: null,
   selectedIds: new Set<number>(),
   colorByFeature: null,
   gates: [],
@@ -92,6 +98,8 @@ export const createSelectionSlice: StateCreator<ViewerStore, [], [], SelectionSl
   setMeasurements: (table) =>
     // New table => previous selection / gates / labels no longer apply.
     set({ measurements: table, selectedIds: new Set<number>(), gates: [], labels: [], colorByFeature: null }),
+
+  setTracking: (tracking) => set({ tracking }),
 
   setSelectedIds: (ids) => set({ selectedIds: new Set<number>(ids) }),
 

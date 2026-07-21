@@ -72,6 +72,12 @@ export interface AppProps {
   zipData?: Blob | Blob[] | MultisceneZips;
   /** Path to the zarr group inside each zip. Omit to auto-detect. */
   zipRootPath?: string;
+  /**
+   * Optional ilastik-style tracking result to overlay as trajectories on the volume. Read separately from the zarr
+   * (nothing is written back). Pass the CSV text directly (e.g. pushed by an automated pipeline) or a `File` (e.g. from
+   * a file picker); either is parsed by `parseTracksCsv`.
+   */
+  tracksCsv?: string | File;
 
   viewerChannelSettings?: ViewerChannelSettings;
 

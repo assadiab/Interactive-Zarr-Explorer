@@ -77,6 +77,8 @@ export default function LoadModal(props: LoadModalProps): ReactElement {
   const [showModal, setShowModalState] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [zipFiles, setZipFiles] = useState<RcFile[]>([]);
+  // Optional tracking CSV overlaid on the volume (read separately from the zarr).
+  const [tracksCsv, setTracksCsv] = useState<RcFile | undefined>(undefined);
   // true = overlay all zips' channels into one volume (","); false = one scene per zip ("+").
   // Default to separate scenes: it works for any set of zips, whereas overlay requires identical pixel dimensions
   // and fails loudly otherwise. Users opt into overlay explicitly via the segmented control.
@@ -90,6 +92,7 @@ export default function LoadModal(props: LoadModalProps): ReactElement {
     if (show) {
       setUrlInput("");
       setZipFiles([]);
+      setTracksCsv(undefined);
       setOverlay(false);
       setErrorText("");
     }
@@ -119,7 +122,7 @@ export default function LoadModal(props: LoadModalProps): ReactElement {
     // load one scene per file, depending on the chosen mode.
     const files = zipFiles as File[];
     const zipData = files.length === 1 ? files[0] : overlay ? files : { scenes: files };
-    props.onLoad({ ...baseAppProps(), zipData });
+    props.onLoad({ ...baseAppProps(), zipData, tracksCsv });
     setShowModal(false);
   };
 
@@ -212,6 +215,23 @@ export default function LoadModal(props: LoadModalProps): ReactElement {
                 </p>
               </SceneModeToggle>
             )}
+            <div style={{ marginTop: 12 }}>
+              <Upload
+                accept=".csv,text/csv"
+                maxCount={1}
+                beforeUpload={(file: RcFile) => {
+                  setTracksCsv(file);
+                  return false; // keep the file local; don't upload anywhere
+                }}
+                onRemove={() => setTracksCsv(undefined)}
+                fileList={tracksCsv ? ([tracksCsv] as unknown as UploadFile[]) : []}
+              >
+                <Button icon={<UploadOutlined />}>Add tracking CSV (optional)</Button>
+              </Upload>
+              <p style={{ fontSize: "12px", marginTop: 6 }}>
+                <i>Overlays ilastik tracking trajectories (trackId, frame, centroids) on the volume.</i>
+              </p>
+            </div>
             <FlexRow $gap={6} style={{ marginTop: 16, justifyContent: "flex-end" }}>
               <Button type="primary" onClick={onClickLoadZip} disabled={zipFiles.length === 0}>
                 Load

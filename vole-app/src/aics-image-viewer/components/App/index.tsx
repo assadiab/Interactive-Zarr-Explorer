@@ -23,6 +23,7 @@ import { subscribeImageToState, subscribeViewToState } from "../../state/subscri
 import type { ViewerState } from "../../state/types";
 import useVolume, { ImageLoadStatus } from "../useVolume";
 import { loadMeasurements } from "../../shared/utils/loadMeasurements";
+import { parseTracksCsv } from "../../shared/utils/loadTracks";
 import type { ScenePath } from "../../shared/utils/sceneStore";
 import type { AppProps, ControlVisibilityFlags, MultisceneUrls, MultisceneZips, UseImageEffectType } from "./types";
 
@@ -32,6 +33,7 @@ import RightPanel from "../RightPanel";
 import { useErrorAlert } from "../ErrorAlert";
 import StyleProvider from "../StyleProvider";
 import Toolbar from "../Toolbar";
+import TracksUpdater from "../TracksUpdater";
 import ChannelUpdater from "./ChannelUpdater";
 
 import "../../assets/styles/globals.css";
@@ -251,6 +253,33 @@ const App: React.FC<AppProps> = (props) => {
       cancelled = true;
     };
   }, [zipData]);
+
+  // Parse the optional tracking CSV (pushed as text, or picked as a File) into the store so `TracksUpdater` can overlay
+  // the trajectories. Kept separate from the zarr; cleared when no CSV is provided.
+  const { tracksCsv } = props;
+  useEffect(() => {
+    if (!tracksCsv) {
+      useViewerState.getState().setTracking(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const text = typeof tracksCsv === "string" ? tracksCsv : await tracksCsv.text();
+        const tracking = parseTracksCsv(text);
+        if (!cancelled) {
+          useViewerState.getState().setTracking(tracking);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          showError(e);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tracksCsv, showError]);
 
   const maskChannelName = props.viewerChannelSettings?.maskChannelName;
 
@@ -618,6 +647,7 @@ const App: React.FC<AppProps> = (props) => {
             version={volume.channelVersions[index]}
           />
         ))}
+        <TracksUpdater view3d={view3d} image={image} />
         <Sider
           className="control-panel-holder"
           collapsible={true}

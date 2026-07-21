@@ -31,6 +31,7 @@ import {
   orderByTCZYX,
   remapAxesToTCZYX,
 } from "./zarr_utils/utils.js";
+import { openLabelSources, selectPyramidCompatibleLabels } from "./zarr_utils/labels.js";
 import type { PrefetchDirection, SubscriberId, TCZYX, ZarrSource, NumericZarrArray } from "./zarr_utils/types.js";
 import { VolumeLoadError, VolumeLoadErrorType, wrapVolumeLoadError } from "./VolumeLoadError.js";
 import wrapArray, { RelaxedFetchStore } from "./zarr_utils/wrappers.js";
@@ -116,7 +117,13 @@ class OMEZarrLoader extends ThreadableVolumeLoader {
     /** Options to configure (pre)fetching behavior. */
     private fetchOptions: ZarrLoaderFetchOptions = DEFAULT_FETCH_OPTIONS,
     /** Direction(s) to prioritize when prefetching. Stored separate from `fetchOptions` since it may be mutated. */
-    private priorityDirections: PrefetchDirection[] = []
+    private priorityDirections: PrefetchDirection[] = [],
+    /**
+     * Channels that came from the NGFF `labels/` group rather than the image itself. These hold object ids, not
+     * intensities, so a viewer should render them with a categorical label LUT instead of a continuous transfer
+     * function. Empty when the store has no (usable) `labels/` group.
+     */
+    public readonly labelChannels: { name: string; channelIndex: number }[] = []
   ) {
     super();
   }
@@ -196,15 +203,25 @@ class OMEZarrLoader extends ThreadableVolumeLoader {
       const scaleLevels = (await Promise.all(lvlProms)) as NumericZarrArray[];
       const axesTCZYX = remapAxesToTCZYX(multiscaleMetadata.axes);
 
-      return {
+      const source = {
         scaleLevels,
         multiscaleMetadata,
         omeroMetadata: omero,
         axesTCZYX,
         channelOffset: 0,
       } as ZarrSource;
+      // Keep `root`/`url` so we can probe this store's optional `labels/` group below.
+      return { source, root, url };
     });
-    const sources = await Promise.all(sourceProms);
+    const opened = await Promise.all(sourceProms);
+    const sources = opened.map((o) => o.source);
+
+    // Optional NGFF `labels/` group on the first store: each label image becomes one extra channel. Labels whose
+    // pyramid is shorter than the image's are skipped — appending them would make `matchSourceScaleLevels` drop the
+    // image down to their level count, forcing full-resolution loads. See `selectPyramidCompatibleLabels`.
+    const labels = await openLabelSources(opened[0].root, opened[0].url, cache, queue);
+    const usableLabels = selectPyramidCompatibleLabels(labels, sources[0].scaleLevels.length);
+    sources.push(...usableLabels.map((l) => l.source));
 
     // Set `channelOffset`s so we can match channel indices to sources
     let channelCount = 0;
@@ -224,7 +241,9 @@ class OMEZarrLoader extends ThreadableVolumeLoader {
     // same in every field we care about, so we only ever use the first source's `multiscaleMetadata` after this point.
     // Should we only store one `OMEMultiscale` record total, rather than one per source?
     const priorityDirs = fetchOptions?.priorityDirections ? fetchOptions.priorityDirections.slice() : undefined;
-    return new OMEZarrLoader(sources, queue, fetchOptions, priorityDirs);
+    // Channel offsets are final now, so each label source's offset *is* its channel index in the volume.
+    const labelChannels = usableLabels.map(({ name, source }) => ({ name, channelIndex: source.channelOffset }));
+    return new OMEZarrLoader(sources, queue, fetchOptions, priorityDirs, labelChannels);
   }
 
   private getUnitSymbols(): [string, string] {
@@ -428,6 +447,11 @@ class OMEZarrLoader extends ThreadableVolumeLoader {
         rotation: [0, 0, 0],
         scale: [1, 1, 1],
       },
+
+      // Carry the label-channel list to the main thread. This loader runs in a web worker, so a field on the loader
+      // instance is unreachable from the app; `ImageInfo` is what gets serialized across. `userData` is the extension
+      // point upstream provides, which keeps this fork addition out of the core `ImageInfo` shape.
+      userData: this.labelChannels.length > 0 ? { labelChannels: this.labelChannels } : undefined,
     };
 
     // The `LoadSpec` passed in at this stage should represent the subset which this loader loads, not that

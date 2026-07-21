@@ -12,6 +12,7 @@ import {
 import { ViewMode } from "../shared/enums";
 import type { AxisName } from "../shared/types";
 import { useConstructor, useRefWithSetter } from "../shared/utils/hooks";
+import { getLabelChannels } from "../shared/utils/labelChannels";
 import PlayControls from "../shared/utils/playControls";
 import SceneStore, { type ScenePath } from "../shared/utils/sceneStore";
 import type { ChannelGrouping, ViewerChannelSettings } from "../shared/utils/viewerChannelSettings";
@@ -274,6 +275,16 @@ const useVolume = (
       const channelNames = aimg.imageInfo.channelNames;
       const { channelSettings: newChannelSettings, restored } = applyChannelSettingsForScene(scene, channelNames);
       loadedSceneRef.current = scene;
+
+      // Channels coming from the `labels/` group hold object ids, not intensities. Rendering them through a continuous
+      // transfer function is meaningless, so switch them to Vol-E's categorical label palette (`colorizeEnabled` makes
+      // `ChannelUpdater` build the LUT from the channel histogram once its data arrives).
+      if (!restored) {
+        const { changeChannelSetting } = useViewerState.getState();
+        for (const { channelIndex } of getLabelChannels(aimg)) {
+          changeChannelSetting(channelIndex, { colorizeEnabled: true, colorizeAlpha: 1 });
+        }
+      }
 
       // A restored scene keeps its saved LUTs, so mark its channels as reloading (not initial) to stop the app from
       // re-initializing them; a fresh scene initializes its LUTs on first load as usual.

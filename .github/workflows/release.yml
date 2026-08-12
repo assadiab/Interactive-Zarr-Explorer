@@ -115,25 +115,33 @@ jobs:
           CORE=$(ls dist/aics-vole-core-*.tgz)
           APP=$(ls dist/aics-vole-app-*.tgz)
 
-          need() { # need <tarball> <exact path> <human message>
-            tar -tzf "$1" | grep -qx "$2" \
-              || { echo "::error::$1 is missing $2 — $3, aborting"; exit 1; }
+          # Each archive is listed ONCE into a variable, and every check reads
+          # that variable. Never `tar … | grep -q`: grep closes the pipe on its
+          # first match, tar dies of EPIPE, and `pipefail` then reports the
+          # whole pipeline as failed — so a check would fail precisely when it
+          # SUCCEEDS. That false negative aborted run 31604147613.
+          CORE_FILES=$(tar -tzf "$CORE")
+          APP_FILES=$(tar -tzf "$APP")
+
+          need() { # need <archive name> <listing> <exact path> <human message>
+            grep -qxF -- "$3" <<< "$2" \
+              || { echo "::error::$1 is missing $3 — $4, aborting"; exit 1; }
           }
-          need_any() { # need_any <tarball> <regex> <human message>
-            tar -tzf "$1" | grep -qE "$2" \
-              || { echo "::error::$1 has no file matching $2 — $3, aborting"; exit 1; }
+          need_any() { # need_any <archive name> <listing> <regex> <human message>
+            grep -qE -- "$3" <<< "$2" \
+              || { echo "::error::$1 has no file matching $3 — $4, aborting"; exit 1; }
           }
 
-          need "$CORE" "package/es/index.js"          "engine not transpiled"
-          need "$CORE" "package/es/types/index.d.ts"  "engine type declarations not emitted"
-          need "$APP"  "package/es/index.js"          "app not transpiled"
-          need_any "$APP" "^package/type-declarations/.*\.d\.ts$" "generateTypes emitted nothing"
-          need_any "$APP" "^package/es/.*\.css$"                  "postcss emitted no stylesheet"
+          need "$CORE" "$CORE_FILES" "package/es/index.js"         "engine not transpiled"
+          need "$CORE" "$CORE_FILES" "package/es/types/index.d.ts" "engine type declarations not emitted"
+          need "$APP"  "$APP_FILES"  "package/es/index.js"         "app not transpiled"
+          need_any "$APP" "$APP_FILES" "^package/type-declarations/.*\.d\.ts$" "generateTypes emitted nothing"
+          need_any "$APP" "$APP_FILES" "^package/es/.*\.css$"                  "postcss emitted no stylesheet"
 
           # The app manifest must actually point at this release, otherwise the
           # consumer install resolves to a file: path that does not exist.
-          tar -xzOf "$APP" package/package.json \
-            | node -e '
+          MANIFEST=$(tar -xzOf "$APP" package/package.json)
+          node -e '
               const p = JSON.parse(require("fs").readFileSync(0, "utf8"));
               const dep = p.dependencies["@aics/vole-core"];
               const version = process.env.VERSION;
@@ -142,7 +150,7 @@ jobs:
                 process.exit(1);
               }
               console.log(`packed ${p.name}@${p.version} -> ${dep}`);
-            '
+            ' <<< "$MANIFEST"
           ls -la dist/
 
       # --- 6. Publish ------------------------------------------------------

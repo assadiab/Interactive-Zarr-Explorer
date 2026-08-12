@@ -166,12 +166,12 @@ jobs:
             $PRERELEASE_FLAG
 
       # --- 7. End-to-end check --------------------------------------------
-      # Installs the published app tarball from its public URL in an empty
-      # project — exactly what the consumer runs. This transitively fetches the
-      # engine from its own release URL, so it proves both archives are valid,
-      # installable npm packages and that the rewritten dependency resolves.
-      # No runtime import: the app is browser code (WebGL, DOM) and would fail
-      # under bare node for reasons unrelated to packaging.
+      # Installs the published app tarball from its public URL, in a project
+      # carrying the supported peers — exactly what the consumer runs. This
+      # transitively fetches the engine from its own release URL, so it proves
+      # both archives are valid, installable npm packages and that the rewritten
+      # dependency resolves. No runtime import: the app is browser code (WebGL,
+      # DOM) and would fail under bare node for reasons unrelated to packaging.
       - name: Install the published packages like a consumer would
         env:
           VERSION: ${{ inputs.version }}
@@ -182,6 +182,13 @@ jobs:
           URL="https://github.com/$REPO/releases/download/$VERSION/$APP"
           mkdir -p /tmp/consumer && cd /tmp/consumer
           npm init -y > /dev/null
+          # Install the peers first. vole-app pins `react` to 18.x while its
+          # `antd` peer accepts react >= 16.9, so in an EMPTY project npm picks
+          # the latest react for antd and then fails against that pin — a
+          # conflict about the consumer's tree, not about these tarballs.
+          # Installing the supported peers keeps this step a packaging check.
+          npm install react@18 react-dom@18 antd@5 three@0.184 \
+            --ignore-scripts --no-audit --no-fund
           npm install "$URL" --ignore-scripts --no-audit --no-fund
           test -f node_modules/@aics/vole-app/es/index.js \
             || { echo "::error::@aics/vole-app installed without es/index.js"; exit 1; }

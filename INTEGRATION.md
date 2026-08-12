@@ -21,13 +21,24 @@ the engine from its own release URL.
 npm install https://github.com/assadiab/Interactive-Zarr-Explorer/releases/download/<tag>/aics-vole-app-<version>.tgz
 ```
 
-`three` is a **peer dependency** of the engine and is not installed for you:
+### Peer dependencies — read this before you start
+
+Nothing below is installed for you. They are peer dependencies, declared by the
+packages and expected to come from your application:
 
 ```bash
-npm install three@^0.184.0
+npm install react@18 react-dom@18 antd@^5.16.2 three@^0.184.0
 ```
 
-React 18 and `antd` come as regular dependencies of the app.
+> **The viewer requires React 18.** `@aics/vole-app` declares
+> `"react": "18.x"` — not `^18 || ^19`. On a React 19 application the install
+> does not resolve, and forcing it through with `--legacy-peer-deps` buys you a
+> tree npm has told you is wrong. If your app is on React 19, raise it before
+> writing any integration code: it needs a decision (isolate the viewer, or
+> widen the range upstream), not a flag.
+
+`antd@5` matters too — the viewer's own UI is built on it, and antd 6 is a
+different major.
 
 ## Minimal usage
 

@@ -63,11 +63,21 @@ jobs:
       # cache can never serve a stale tarball under a version already seen.
       # Done after both installs: bumping earlier would desync the lockfiles
       # and break `npm ci`.
-      - name: Suffix the package versions
+      #
+      # The same step drops the `prepare` script from both manifests, because
+      # `npm pack --ignore-scripts` does NOT stop npm from re-running `prepare`
+      # at pack time. Both packages define `prepare` as a full rebuild, and in
+      # vole-app that rebuild fails: `prepare` calls `npm run build`, where the
+      # known pre-existing type error is fatal — unlike the explicit build step
+      # above, which tolerates it on purpose. Dropping the script is also right
+      # for the published artifact: the tarball ships a prebuilt `es/`, so a
+      # consumer has nothing to prepare.
+      - name: Suffix the package versions and drop the prepare script
         run: |
           for pkg in vole-core vole-app; do
             base=$(node -p "require('./$pkg/package.json').version")
             npm --prefix "$pkg" pkg set version="$base-izx.${{ github.run_number }}"
+            npm --prefix "$pkg" pkg delete scripts.prepare
             echo "$pkg -> $(node -p "require('./$pkg/package.json').version")"
           done
 

@@ -16,6 +16,11 @@ import type { ViewerChannelSettings } from "../src/aics-image-viewer/shared/util
  * The lineage below is INVENTED. These files are unrelated samples; nothing derived
  * "Variance 2" from "Variance 1". It is shaped like a real acquisition tree only so the
  * tree, the checkboxes and the ordering can be seen working.
+ *
+ * Both entries are the same size, so overlaying them works. Public samples that differ in
+ * shape cannot be overlaid — the mode merges channels into ONE volume — and a timelapse
+ * sample was dropped from here because it never finished loading over the network, which
+ * says nothing useful about the explorer.
  */
 
 const TOP_BAR_PX = 48;
@@ -45,7 +50,6 @@ const DEMO_CATALOG: CidCatalog = {
   datasets: [
     { id: "variance-1", name: "Variance — acquisition", url: `${SAMPLE_BASE}/variance/1.zarr` },
     { id: "variance-2", name: "Variance — derived", url: `${SAMPLE_BASE}/variance/2.zarr`, parentId: "variance-1" },
-    { id: "mitosis", name: "Mitosis timelapse", url: `${SAMPLE_BASE}/timelapse/timeseries_mitosis.zarr` },
   ],
 };
 

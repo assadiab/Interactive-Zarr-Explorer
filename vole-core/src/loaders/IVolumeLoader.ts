@@ -12,6 +12,13 @@ export class LoadSpec {
   time = 0;
   /** The max size of a volume atlas that may be produced by a load. Used to pick the appropriate multiscale level. */
   maxAtlasEdge?: number;
+  /**
+   * Total bytes the volume's channel textures may occupy, across every channel. Unset means
+   * the edge limit alone decides, which is blind to how many channels a volume carries:
+   * every channel holding data gets a texture of its own, so overlaying sources multiplies
+   * the cost of a level `maxAtlasEdge` still calls a fit.
+   */
+  maxAtlasBytes?: number;
   /** An optional bias added to the scale level index after the optimal level is picked based on `maxAtlasEdge`. */
   scaleLevelBias?: number;
   /**

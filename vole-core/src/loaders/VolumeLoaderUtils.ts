@@ -1,6 +1,7 @@
 import { Box3, Vector2, Vector3 } from "three";
 
 import { CImageInfo, type ImageInfo } from "../ImageInfo.js";
+import type { NumberType } from "../types.js";
 import { LoadSpec } from "./IVolumeLoader.js";
 
 export const MAX_ATLAS_EDGE = 4096;
@@ -77,9 +78,49 @@ export function computePackedAtlasDims(z: number, tw: number, th: number): Vecto
   return new Vector2(nrows, ncols);
 }
 
+/** Bytes one sample of this type occupies in a channel's data texture. */
+export function bytesPerSample(dtype: NumberType): number {
+  switch (dtype) {
+    case "int8":
+    case "uint8":
+      return 1;
+    case "int16":
+    case "uint16":
+      return 2;
+    default:
+      // int32, uint32, float32 — float64 is narrowed to float32 before upload.
+      return 4;
+  }
+}
+
+/**
+ * How much GPU memory a volume may spend on its channel textures, and what one voxel of it
+ * costs.
+ *
+ * The edge limit alone does not bound memory: it constrains the geometry of a SINGLE
+ * channel's atlas, while every channel holding data gets a texture of its own
+ * ({@link Channel.dataTexture}). Overlaying two sources doubles the cost of a level the
+ * edge test still calls a fit.
+ */
+export type AtlasMemoryLimit = {
+  /** Total bytes the channel textures of one volume may occupy. */
+  maxBytes: number;
+  /** Cost of one voxel across every channel that will hold data: channels × bytes per sample. */
+  bytesPerVoxel: number;
+};
+
+/** Bytes the channel textures occupy once the Z slices are packed into an atlas. */
+export function atlasBytes(spatialDimZYX: [number, number, number], bytesPerVoxel: number): number {
+  const [z, y, x] = spatialDimZYX;
+  const tiles = computePackedAtlasDims(z, x, y);
+  // `computePackedAtlasDims` returns (rows, cols); the atlas is padded out to whole tiles.
+  return tiles.y * x * (tiles.x * y) * bytesPerVoxel;
+}
+
 function doesSpatialDimensionFitInAtlas(
   spatialDimZYX: [number, number, number],
-  maxAtlasEdge = MAX_ATLAS_EDGE
+  maxAtlasEdge = MAX_ATLAS_EDGE,
+  memory?: AtlasMemoryLimit
 ): boolean {
   // Estimate atlas size
   const x = spatialDimZYX[2];
@@ -87,13 +128,20 @@ function doesSpatialDimensionFitInAtlas(
   const z = spatialDimZYX[0];
   const xtiles = Math.floor(maxAtlasEdge / x);
   const ytiles = Math.floor(maxAtlasEdge / y);
-  return xtiles * ytiles >= z;
+  if (xtiles * ytiles < z) {
+    return false;
+  }
+  return memory === undefined || atlasBytes(spatialDimZYX, memory.bytesPerVoxel) <= memory.maxBytes;
 }
 
-/** Picks the largest scale level that can fit into a texture atlas with edges no longer than `maxAtlasEdge`. */
+/**
+ * Picks the largest scale level that fits a texture atlas with edges no longer than
+ * `maxAtlasEdge` and, when `memory` is given, within that memory budget too.
+ */
 export function estimateLevelForAtlas(
   spatialDimsZYX: [number, number, number][],
-  maxAtlasEdge = MAX_ATLAS_EDGE
+  maxAtlasEdge = MAX_ATLAS_EDGE,
+  memory?: AtlasMemoryLimit
 ): number | undefined {
   if (spatialDimsZYX.length <= 1) {
     return 0;
@@ -101,7 +149,7 @@ export function estimateLevelForAtlas(
 
   for (let i = 0; i < spatialDimsZYX.length; ++i) {
     // estimate atlas size:
-    if (doesSpatialDimensionFitInAtlas(spatialDimsZYX[i], maxAtlasEdge)) {
+    if (doesSpatialDimensionFitInAtlas(spatialDimsZYX[i], maxAtlasEdge, memory)) {
       return i;
     }
   }
@@ -135,19 +183,23 @@ export function scaleMultipleDimsToSubregion(subregion: Box3, dims: ZYX[]): ZYX[
  *
  *  This function assumes that `spatialDimsZYX` has already been appropriately scaled to match `loadSpec`'s `subregion`.
  */
-export function pickLevelToLoadUnscaled(loadSpec: LoadSpec, spatialDimsZYX: ZYX[]): number {
+export function pickLevelToLoadUnscaled(
+  loadSpec: LoadSpec,
+  spatialDimsZYX: ZYX[],
+  memory?: AtlasMemoryLimit
+): number {
   if (loadSpec.useExplicitLevel && loadSpec.multiscaleLevel !== undefined) {
     // clamp to actual allowed level range
     return Math.max(0, Math.min(spatialDimsZYX.length - 1, loadSpec.multiscaleLevel));
   }
 
-  let levelToLoad = estimateLevelForAtlas(spatialDimsZYX, loadSpec.maxAtlasEdge);
+  let levelToLoad = estimateLevelForAtlas(spatialDimsZYX, loadSpec.maxAtlasEdge, memory);
   // Check here for whether levelToLoad is within max atlas size?
   if (levelToLoad !== undefined) {
     levelToLoad = Math.max(levelToLoad + (loadSpec.scaleLevelBias ?? 0), loadSpec.multiscaleLevel ?? 0);
     levelToLoad = Math.max(0, Math.min(spatialDimsZYX.length - 1, levelToLoad));
 
-    if (doesSpatialDimensionFitInAtlas(spatialDimsZYX[levelToLoad], loadSpec.maxAtlasEdge)) {
+    if (doesSpatialDimensionFitInAtlas(spatialDimsZYX[levelToLoad], loadSpec.maxAtlasEdge, memory)) {
       return levelToLoad;
     }
   }
@@ -174,9 +226,9 @@ export function pickLevelToLoadUnscaled(loadSpec: LoadSpec, spatialDimsZYX: ZYX[
  * `pickLevelToLoadUnscaled`, and additionally scales the dimensions of the scale levels to account for the
  * `LoadSpec`'s `subregion` property.
  */
-export function pickLevelToLoad(loadSpec: LoadSpec, spatialDimsZYX: ZYX[]): number {
+export function pickLevelToLoad(loadSpec: LoadSpec, spatialDimsZYX: ZYX[], memory?: AtlasMemoryLimit): number {
   const scaledDims = scaleMultipleDimsToSubregion(loadSpec.subregion, spatialDimsZYX);
-  return pickLevelToLoadUnscaled(loadSpec, scaledDims);
+  return pickLevelToLoadUnscaled(loadSpec, scaledDims, memory);
 }
 
 /** Given the size of a volume in pixels, convert a `Box3` in the 0-1 range to pixels */

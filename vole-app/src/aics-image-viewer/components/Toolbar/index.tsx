@@ -1,5 +1,5 @@
 import type { VolumeDims } from "@aics/vole-core";
-import { ReloadOutlined } from "@ant-design/icons";
+import { FolderOpenOutlined, ReloadOutlined } from "@ant-design/icons";
 import { Button, Radio, Select, Tooltip } from "antd";
 import { debounce } from "lodash";
 import React from "react";
@@ -21,6 +21,9 @@ type ToolbarProps = {
   canPathTrace: boolean;
   multiscaleDims?: VolumeDims[];
   multiscaleIndex?: number;
+
+  /** Show the button that opens the dataset explorer. Only true when a host declared a catalog. */
+  hasCatalog?: boolean;
 
   resetCamera: () => void;
   downloadScreenshot: () => void;
@@ -186,6 +189,14 @@ const Toolbar: React.FC<ToolbarProps> = (props) => {
               <span style={visuallyHiddenStyle}>Reset to initial settings</span>
             </Button>
           </Tooltip>
+          {props.hasCatalog && (
+            // `type="link"` paints the button in the theme's primary purple, so it reads
+            // like the entry points it replaces rather than like a new kind of control.
+            <Button type="link" onClick={() => useViewerState.getState().setExplorerOpen(true)}>
+              <FolderOpenOutlined />
+              Datasets
+            </Button>
+          )}
         </div>
 
         <div className="viewer-toolbar-center" ref={centerRef}>

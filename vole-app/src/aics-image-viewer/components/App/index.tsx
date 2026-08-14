@@ -22,6 +22,7 @@ import { select, useViewerState } from "../../state/store";
 import { subscribeImageToState, subscribeViewToState } from "../../state/subscribers";
 import type { ViewerState } from "../../state/types";
 import useVolume, { ImageLoadStatus } from "../useVolume";
+import { catalogToScenes, resolveOpenDatasets } from "../../shared/utils/cidCatalog";
 import { loadMeasurements } from "../../shared/utils/loadMeasurements";
 import { parseTracksCsv } from "../../shared/utils/loadTracks";
 import type { ScenePath } from "../../shared/utils/sceneStore";
@@ -29,6 +30,7 @@ import type { AppProps, ControlVisibilityFlags, MultisceneUrls, MultisceneZips, 
 
 import CellViewerCanvasWrapper from "../CellViewerCanvasWrapper";
 import ControlPanel from "../ControlPanel";
+import CidExplorerPanel from "../CidExplorerPanel";
 import { useErrorAlert } from "../ErrorAlert";
 import StyleProvider from "../StyleProvider";
 import Toolbar from "../Toolbar";
@@ -193,8 +195,24 @@ const App: React.FC<AppProps> = (props) => {
 
   const imageUrlRef = useRef<string | string[] | MultisceneUrls>("");
   const scenesRef = useRef<ScenePath[]>([]);
-  const { imageUrl, parentImageUrl, rawData, rawDims, zipData, zipRootPath } = props;
+  const { imageUrl, parentImageUrl, rawData, rawDims, zipData, zipRootPath, cidCatalog } = props;
+
+  // Datasets the user opened in the explorer, resolved in the order they were opened —
+  // that order decides channel order when overlaid and scene order when side by side.
+  const openDatasetIds = useViewerState(select("openDatasetIds"));
+  const catalogDisplayMode = useViewerState(select("catalogDisplayMode"));
+  const openDatasets = useMemo(
+    () => (cidCatalog ? resolveOpenDatasets(cidCatalog.datasets, openDatasetIds) : []),
+    [cidCatalog, openDatasetIds]
+  );
+
   const scenes = useMemo((): ScenePath[] => {
+    // A catalog is the single source of data while it is in play, so that "which source
+    // wins" never becomes a question. Nothing open means no scene at all — a state the
+    // other entry points cannot produce, and which `useVolume` now handles by staying idle.
+    if (cidCatalog) {
+      return catalogToScenes(openDatasets, catalogDisplayMode);
+    }
     if (rawData && rawDims) {
       return [{ data: rawData, metadata: rawDims }];
     } else if (zipData) {
@@ -212,12 +230,37 @@ const App: React.FC<AppProps> = (props) => {
       scenesRef.current = result;
       return result;
     }
-  }, [imageUrl, parentImageUrl, rawData, rawDims, zipData, zipRootPath, imageType]);
+  }, [
+    imageUrl,
+    parentImageUrl,
+    rawData,
+    rawDims,
+    zipData,
+    zipRootPath,
+    imageType,
+    cidCatalog,
+    openDatasets,
+    catalogDisplayMode,
+  ]);
 
-  // Human-readable label per scene for the scene picker (zip file names, URLs, else "Scene N").
+  // Human-readable label per scene for the scene picker. A host application can name the
+  // scenes itself through `sceneNames` — a `Blob` it pushes carries no file name, so the
+  // derived label would be "Scene N". Anything it leaves out falls back to the name we can
+  // derive from the source (zip file names, URLs, else "Scene N").
+  const { sceneNames: sceneNamesProp } = props;
   const sceneNames = useMemo(
-    (): string[] =>
-      scenes.map((s, i) => {
+    (): string[] => {
+      // With a catalog, the host already named every dataset — reuse those names rather
+      // than the URLs the scenes are built from, which are opaque ids to a user.
+      if (cidCatalog) {
+        const names = openDatasets.map((dataset) => dataset.name);
+        return catalogDisplayMode === "overlay" ? (names.length > 0 ? [names.join(" + ")] : []) : names;
+      }
+      return scenes.map((s, i) => {
+        const provided = sceneNamesProp?.[i]?.trim();
+        if (provided) {
+          return provided;
+        }
         if (typeof s === "object" && !Array.isArray(s) && "zips" in s) {
           return s.zips.map((z) => (z as File).name || `Scene ${i + 1}`).join(" + ");
         }
@@ -228,8 +271,9 @@ const App: React.FC<AppProps> = (props) => {
           return s.join(", ");
         }
         return `Scene ${i + 1}`;
-      }),
-    [scenes]
+      });
+    },
+    [scenes, sceneNamesProp, cidCatalog, openDatasets, catalogDisplayMode]
   );
 
   // Load the per-object measurement table whenever the data source is a local zip, so the Features
@@ -255,9 +299,21 @@ const App: React.FC<AppProps> = (props) => {
     };
   }, [zipData]);
 
+  // Open the dataset the host wants shown first. Runs again only if the host names a
+  // different one, so it never fights the user's own selection.
+  const initialOpenId = cidCatalog?.initialOpenId;
+  useEffect(() => {
+    if (initialOpenId) {
+      useViewerState.getState().openOnlyDataset(initialOpenId);
+    }
+  }, [initialOpenId]);
+
   // Parse the optional tracking CSV (pushed as text, or picked as a File) into the store so `TracksUpdater` can overlay
   // the trajectories. Kept separate from the zarr; cleared when no CSV is provided.
-  const { tracksCsv } = props;
+  // With a catalog the CSV travels with its dataset, so it follows what the user opened:
+  // the first open dataset that declares one wins, rather than the `tracksCsv` prop.
+  const catalogTracksCsv = openDatasets.find((dataset) => dataset.tracksCsv)?.tracksCsv;
+  const tracksCsv = cidCatalog ? catalogTracksCsv : props.tracksCsv;
   useEffect(() => {
     if (!tracksCsv) {
       useViewerState.getState().setTracking(null);
@@ -676,12 +732,16 @@ const App: React.FC<AppProps> = (props) => {
           />
         </Sider>
         <Layout className="cell-viewer-wrapper" style={{ margin: props.canvasMargin }}>
+          {/* Mounted only when a host declared a catalog — no catalog, no explorer, and the
+              rest of the viewer behaves exactly as it does for every other entry point. */}
+          {props.cidCatalog && <CidExplorerPanel catalog={props.cidCatalog} />}
           <Content>
             <Toolbar
               fovDownloadHref={props.parentImageDownloadHref}
               cellDownloadHref={props.imageDownloadHref}
               hasParentImage={!!props.parentImageUrl}
               hasCellId={!!props.cellId}
+              hasCatalog={!!props.cidCatalog}
               canPathTrace={view3d ? view3d.hasWebGL2() : false}
               resetCamera={resetCamera}
               downloadScreenshot={saveScreenshot}

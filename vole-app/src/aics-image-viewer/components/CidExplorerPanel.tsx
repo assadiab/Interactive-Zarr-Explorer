@@ -1,4 +1,4 @@
-import { Drawer, Empty, Radio, Tree } from "antd";
+import { Drawer, Empty, Radio, Spin, Tree } from "antd";
 import type { DataNode } from "antd/es/tree";
 import React, { useMemo } from "react";
 
@@ -7,6 +7,8 @@ import { select, useViewerState } from "../state/store";
 
 type CidExplorerPanelProps = {
   catalog: CidCatalog;
+  /** A volume is being fetched. Ticking a dataset is otherwise silent while the data travels. */
+  loading: boolean;
 };
 
 /** Maps the catalog tree onto antd's `Tree` shape, keeping declaration order. */
@@ -35,7 +37,7 @@ function allIds(nodes: CidCatalogNode[]): string[] {
  * Checking a dataset only records it as open; fetching its archive and handing it to the
  * loader happens elsewhere, so this panel stays a view over the store.
  */
-const CidExplorerPanel: React.FC<CidExplorerPanelProps> = ({ catalog }) => {
+const CidExplorerPanel: React.FC<CidExplorerPanelProps> = ({ catalog, loading }) => {
   const open = useViewerState(select("explorerOpen"));
   const openDatasetIds = useViewerState(select("openDatasetIds"));
   const displayMode = useViewerState(select("catalogDisplayMode"));
@@ -64,7 +66,14 @@ const CidExplorerPanel: React.FC<CidExplorerPanelProps> = ({ catalog }) => {
 
   return (
     <Drawer
-      title="Datasets"
+      title={
+        <span>
+          Datasets
+          {/* The canvas spinner sits behind this panel, so without a marker here ticking a
+              dataset looks like nothing happened until the volume appears. */}
+          {loading && <Spin size="small" style={{ marginLeft: "8px" }} />}
+        </span>
+      }
       placement="left"
       open={open}
       onClose={() => useViewerState.getState().setExplorerOpen(false)}

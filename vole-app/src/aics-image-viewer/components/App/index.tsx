@@ -734,7 +734,15 @@ const App: React.FC<AppProps> = (props) => {
         <Layout className="cell-viewer-wrapper" style={{ margin: props.canvasMargin }}>
           {/* Mounted only when a host declared a catalog — no catalog, no explorer, and the
               rest of the viewer behaves exactly as it does for every other entry point. */}
-          {props.cidCatalog && <CidExplorerPanel catalog={props.cidCatalog} />}
+          {props.cidCatalog && (
+            <CidExplorerPanel
+              catalog={props.cidCatalog}
+              loading={
+                volume.imageLoadStatus === ImageLoadStatus.REQUESTED ||
+                volume.imageLoadStatus === ImageLoadStatus.LOADING
+              }
+            />
+          )}
           <Content>
             <Toolbar
               fovDownloadHref={props.parentImageDownloadHref}

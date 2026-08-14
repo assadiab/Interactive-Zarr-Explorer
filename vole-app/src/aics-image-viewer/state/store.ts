@@ -9,12 +9,14 @@ import { createResetSlice, type ResetStateSlice } from "./reset";
 import type { ChannelState, ViewerState } from "./types";
 import { validateState, validateStateValue } from "./util";
 
+import { createCatalogSlice, type CatalogSlice } from "./catalog";
 import { createSelectionSlice, type SelectionSlice } from "./selection";   // (1)
 
 export type ViewerStore = ViewerState &
   ViewerStateActions &
   ResetStateSlice &
-  SelectionSlice & {                                                       // (2)
+  SelectionSlice &
+  CatalogSlice & {                                                         // (2)
     channelSettings: ChannelState[];
   };
 
@@ -34,6 +36,7 @@ export type ViewerStateActions = {
 const createViewerStateStore: StateCreator<ViewerStore> = (set, get, ...etc) => ({
   ...createResetSlice(set, get, ...etc),
   ...createSelectionSlice(set, get, ...etc),
+  ...createCatalogSlice(set, get, ...etc),
   ...getDefaultViewerState(),
   channelSettings: [],
 

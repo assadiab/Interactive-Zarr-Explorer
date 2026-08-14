@@ -31,7 +31,20 @@ export type UseVolumeOptions = {
   onError?: (error: unknown, image?: Volume) => void;
   /** The name of a channel which should be treated as a mask rather than as viewable data. */
   maskChannelName?: string;
+  /** Total bytes the volume's channel textures may occupy. See `AppProps.maxAtlasBytes`. */
+  maxAtlasBytes?: number;
 };
+
+/**
+ * Default GPU budget for one volume's channel textures.
+ *
+ * The engine's atlas edge limit bounds the geometry of a SINGLE channel, so it says "fits"
+ * just the same when a volume carries eighteen of them — a full 4096² atlas costs 16 MiB per
+ * uint8 channel, 64 MiB per float32 one. Overlaying two sources is exactly how that adds up
+ * unnoticed. 1 GiB leaves room on a modest card while never forcing a coarser level on the
+ * single-source loads that work today.
+ */
+export const DEFAULT_MAX_ATLAS_BYTES = 1024 * 1024 * 1024;
 
 export const enum ImageLoadStatus {
   REQUESTED,
@@ -107,6 +120,7 @@ const useVolume = (
   const onChangeSceneRef = useEffectEventRef(options?.onChangeScene);
   const onCreateImageRef = useEffectEventRef(options?.onCreateImage);
   const maskChannelName = options?.maskChannelName;
+  const maxAtlasBytes = options?.maxAtlasBytes ?? DEFAULT_MAX_ATLAS_BYTES;
 
   // set up our big objects: the image, its loading infrastructure, and controls for playback
   const [image, setImage] = useState<Volume | null>(null);
@@ -268,6 +282,7 @@ const useVolume = (
 
       const loadSpec = new LoadSpec();
       loadSpec.time = time;
+      loadSpec.maxAtlasBytes = maxAtlasBytes;
 
       const aimg = await sceneLoader.createVolume(scene, loadSpec, onChannelDataLoaded).catch(onError);
 
@@ -348,6 +363,7 @@ const useVolume = (
       changeViewerSetting,
       applyChannelSettingsForScene,
       options?.viewerChannelSettings,
+      maxAtlasBytes,
     ]
   );
 

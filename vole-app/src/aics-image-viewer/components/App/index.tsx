@@ -423,6 +423,7 @@ const App: React.FC<AppProps> = (props) => {
     onChangeScene,
     onError,
     maskChannelName,
+    maxAtlasBytes: props.maxAtlasBytes,
   });
   const { image, setTime, setScene } = volume;
 

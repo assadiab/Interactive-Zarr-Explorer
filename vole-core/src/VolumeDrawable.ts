@@ -120,7 +120,12 @@ export default class VolumeDrawable {
         this.volumeRendering = new RayMarchedAtlasVolume(this.volume, this.settings);
     }
     if (this.pickRendering) {
+      // Carry the picked channel across the rebuild. A fresh `PickVolume` starts at channel 0
+      // — an intensity channel — so without this, rebuilding silently repoints picking at the
+      // wrong data, and callers get no event telling them to re-arm it.
+      const channelToPick = this.pickRendering.getChannelToPick();
       this.pickRendering = new PickVolume(this.volume, this.settings);
+      this.pickRendering.setChannelToPick(channelToPick);
     }
     this.contourRendering = new ContourPass();
 
@@ -856,7 +861,12 @@ export default class VolumeDrawable {
         break;
     }
     if (this.pickRendering) {
+      // Carry the picked channel across the rebuild. A fresh `PickVolume` starts at channel 0
+      // — an intensity channel — so without this, rebuilding silently repoints picking at the
+      // wrong data, and callers get no event telling them to re-arm it.
+      const channelToPick = this.pickRendering.getChannelToPick();
       this.pickRendering = new PickVolume(this.volume, this.settings);
+      this.pickRendering.setChannelToPick(channelToPick);
     }
 
     if (newRenderMode === RenderMode.RAYMARCH || newRenderMode === RenderMode.SLICE) {

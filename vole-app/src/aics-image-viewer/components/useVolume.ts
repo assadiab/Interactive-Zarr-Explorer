@@ -329,6 +329,17 @@ const useVolume = (
           requiredChannelsToLoad.push(maskChannelIndex);
         }
       }
+
+      // Label channels hold object ids, so picking reads their data whether or not the user
+      // displays them. Without this they are simply never fetched: a host that enables "the
+      // first three channels" — which every entry point does, since intensity channels are
+      // what one wants to see — leaves the labels unloaded and picking silently dead.
+      for (const { channelIndex } of getLabelChannels(aimg)) {
+        if (!requiredChannelsToLoad.includes(channelIndex)) {
+          requiredChannelsToLoad.push(channelIndex);
+        }
+      }
+
       requiredLoadSpec.channels = requiredChannelsToLoad;
 
       const viewMode = useViewerState.getState().viewMode;

@@ -116,6 +116,19 @@ Then open http://localhost:9020 and click **Load .zip**.
 > After editing anything in `vole-core/src`, run `pixi run rebuild-core` (or
 > `pixi run build-core`) so the app picks up the rebuilt engine — `vole-app`
 > consumes the **built** `vole-core/es`, not its source.
+>
+> **After switching branches, clean before rebuilding:**
+>
+> ```bash
+> cd vole-core && npm run clean && cd .. && pixi run build-core
+> ```
+>
+> `build` only overwrites the files it compiles; it never deletes stale ones. A
+> branch that lacks a module therefore leaves the previous branch's version of it
+> sitting in `es/`, next to freshly built files that no longer import it. The
+> result is an engine assembled from two branches that compiles and runs, and
+> quietly behaves like neither — a feature simply stops happening, with no error
+> anywhere. `clean` runs `rimraf es/` and costs a few seconds.
 
 ---
 

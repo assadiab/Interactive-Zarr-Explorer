@@ -26,7 +26,7 @@ import {
 } from "./VolumeLoaderUtils.js";
 import ChunkPrefetchIterator from "./zarr_utils/ChunkPrefetchIterator.js";
 import {
-  getScale,
+  getEffectiveScale,
   getSourceChannelMeta,
   matchSourceScaleLevels,
   orderByDimension,
@@ -269,7 +269,8 @@ class OMEZarrLoader extends ThreadableVolumeLoader {
   }
 
   private getScale(level: number): TCZYX<number> {
-    return getScale(this.sources[0].multiscaleMetadata.datasets[level], this.sources[0].axesTCZYX);
+    const source = this.sources[0];
+    return getEffectiveScale(source.multiscaleMetadata, source.multiscaleMetadata.datasets[level], source.axesTCZYX);
   }
 
   private orderByDimension<T>(valsTCZYX: TCZYX<T>, sourceIdx = 0): T[] {

@@ -1,7 +1,7 @@
 import Plotly from "plotly.js-dist-min";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { type Gate, idsInGate } from "../state/selection";
+import { idsInGate } from "../state/selection";
 import { useViewerState } from "../state/store";
 import { makeObjectKey, type ObjectKey } from "../shared/utils/objectKey";
 

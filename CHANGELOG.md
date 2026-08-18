@@ -24,9 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Forked from Allen Institute's Vol-E and renamed to Interactive Zarr Explorer.
 
 ### Known issues
-- CI `lint` is non-blocking (`continue-on-error`) for both packages because of
-  inherited lint debt. `typecheck` is blocking since the `three` `Box3` mismatch
-  in `useVolume.ts` was resolved.
+- None currently tracked. CI runs lint, typecheck and tests as blocking checks
+  for both packages.
 
 <!--
 Release checklist (maintainer):

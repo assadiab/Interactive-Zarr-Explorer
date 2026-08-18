@@ -16,6 +16,8 @@ import {
   type LoadedVolumeInfo,
 } from "./IVolumeLoader.js";
 import {
+  type AtlasMemoryLimit,
+  bytesPerSample,
   composeSubregion,
   computePackedAtlasDims,
   convertSubregionToPixels,
@@ -326,6 +328,25 @@ class OMEZarrLoader extends ThreadableVolumeLoader {
     return Promise.resolve(result);
   }
 
+  /**
+   * The GPU budget to pick a scale level against, or undefined when the caller asked for
+   * none. Every channel that holds data gets a texture of its own, so a voxel costs one
+   * sample per channel — summed over sources, since overlaid sources share one volume.
+   * The channel axis has the same length at every level, so level 0 answers for all.
+   */
+  private getAtlasMemoryLimit(loadSpec: LoadSpec): AtlasMemoryLimit | undefined {
+    const maxBytes = loadSpec.maxAtlasBytes;
+    if (maxBytes === undefined || !Number.isFinite(maxBytes)) {
+      return undefined;
+    }
+    let channels = 0;
+    for (const source of this.sources) {
+      const cIndex = source.axesTCZYX[1];
+      channels += cIndex > -1 ? source.scaleLevels[0].shape[cIndex] : 1;
+    }
+    return { maxBytes, bytesPerVoxel: channels * bytesPerSample(this.sources[0].scaleLevels[0].dtype) };
+  }
+
   createImageInfo(loadSpec: LoadSpec): Promise<LoadedVolumeInfo> {
     // We ensured most info (dims, chunks, etc.) matched between sources earlier, so we can just use the first source.
     const source0 = this.sources[0];
@@ -333,7 +354,7 @@ class OMEZarrLoader extends ThreadableVolumeLoader {
     const hasT = t > -1;
     const hasZ = z > -1;
 
-    const levelToLoad = pickLevelToLoad(loadSpec, this.getLevelShapesZYX());
+    const levelToLoad = pickLevelToLoad(loadSpec, this.getLevelShapesZYX(), this.getAtlasMemoryLimit(loadSpec));
     const shapeLv = source0.scaleLevels[levelToLoad].shape;
 
     const [spatialUnit, timeUnit] = this.getUnitSymbols();
@@ -511,7 +532,11 @@ class OMEZarrLoader extends ThreadableVolumeLoader {
     const subregion = composeSubregion(loadSpec.subregion, maxExtent);
 
     // Pick the level to load based on the subregion size
-    const multiscaleLevel = pickLevelToLoad({ ...loadSpec, subregion }, this.getLevelShapesZYX());
+    const multiscaleLevel = pickLevelToLoad(
+      { ...loadSpec, subregion },
+      this.getLevelShapesZYX(),
+      this.getAtlasMemoryLimit(loadSpec)
+    );
     const array0Shape = this.sources[0].scaleLevels[multiscaleLevel].shape;
 
     // Convert subregion to volume voxels

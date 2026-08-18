@@ -5,7 +5,12 @@ import Histogram from "./Histogram.js";
 import { Lut } from "./Lut.js";
 import { getColorByChannelIndex } from "./constants/colors.js";
 import { type IVolumeLoader, LoadSpec, type PerChannelCallback } from "./loaders/IVolumeLoader.js";
-import { MAX_ATLAS_EDGE, pickLevelToLoadUnscaled } from "./loaders/VolumeLoaderUtils.js";
+import {
+  type AtlasMemoryLimit,
+  bytesPerSample,
+  MAX_ATLAS_EDGE,
+  pickLevelToLoadUnscaled,
+} from "./loaders/VolumeLoaderUtils.js";
 import type { NumberType, TypedArray } from "./types.js";
 import { type ImageInfo, CImageInfo, defaultImageInfo } from "./ImageInfo.js";
 import type { VolumeDims } from "./VolumeDims.js";
@@ -82,6 +87,8 @@ export default class Volume {
       multiscaleLevel: 0,
       scaleLevelBias: 0,
       maxAtlasEdge: MAX_ATLAS_EDGE,
+      // No GPU budget unless a caller sets one: the edge limit alone decides, as before.
+      maxAtlasBytes: Infinity,
       channels: Array.from({ length: this.imageInfo.numChannels }, (_val, idx) => idx),
       ...loadSpec,
     };
@@ -183,10 +190,24 @@ export default class Volume {
    * not. A higher `scaleLevelBias` *may* nudge the volume into a higher scale level, or we may already be at the max
    * imposed by `multiscaleLevel`.
    */
+  /**
+   * The GPU budget to pick a scale level against, or undefined when none was requested.
+   * One voxel costs one sample in EVERY channel's texture, so the channel count is what the
+   * edge limit alone misses.
+   */
+  private getAtlasMemoryLimit(dims: VolumeDims[]): AtlasMemoryLimit | undefined {
+    const maxBytes = this.loadSpecRequired.maxAtlasBytes;
+    if (maxBytes === undefined || !Number.isFinite(maxBytes)) {
+      return undefined;
+    }
+    return { maxBytes, bytesPerVoxel: this.imageInfo.numChannels * bytesPerSample(dims[0].dataType) };
+  }
+
   private mayLoadNewScaleLevel(): boolean {
     return (
       !this.loadSpec.subregion.equals(this.loadSpecRequired.subregion) ||
       this.loadSpecRequired.maxAtlasEdge !== this.loadSpec.maxAtlasEdge ||
+      this.loadSpecRequired.maxAtlasBytes !== this.loadSpec.maxAtlasBytes ||
       this.loadSpecRequired.multiscaleLevel !== this.loadSpec.multiscaleLevel ||
       this.loadSpecRequired.scaleLevelBias !== this.loadSpec.scaleLevelBias
     );
@@ -204,7 +225,7 @@ export default class Volume {
       if (dims) {
         const dimsZYX = dims.map(({ shape }): [number, number, number] => [shape[2], shape[3], shape[4]]);
         // Determine which scale level *would* be loaded, and see if it's different than what we have
-        const levelToLoad = pickLevelToLoadUnscaled(this.loadSpecRequired, dimsZYX);
+        const levelToLoad = pickLevelToLoadUnscaled(this.loadSpecRequired, dimsZYX, this.getAtlasMemoryLimit(dims));
         shouldReload = this.imageInfo.multiscaleLevel !== levelToLoad;
       }
     }

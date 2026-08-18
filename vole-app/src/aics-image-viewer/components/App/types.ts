@@ -73,6 +73,16 @@ export interface AppProps {
   /** Path to the zarr group inside each zip. Omit to auto-detect. */
   zipRootPath?: string;
 
+  /**
+   * Total bytes one volume's channel textures may occupy on the GPU. Defaults to 1 GiB.
+   *
+   * Raise it on machines with plenty of VRAM to keep a finer scale level; lower it if the
+   * viewer is one of several things sharing the card. The viewer picks the finest multiscale
+   * level that stays within it — which, unlike the atlas edge limit alone, accounts for how
+   * many channels a volume carries.
+   */
+  maxAtlasBytes?: number;
+
   viewerChannelSettings?: ViewerChannelSettings;
 
   appHeight: string;

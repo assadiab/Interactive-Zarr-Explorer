@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Correlation heatmap and manual annotation panels.
 - OME-Zarr `labels/` groups load as an extra channel, and clicking an object in
   the 3D view selects it.
+- Host configuration for the loader's cache and request-queue sizes
+  (`cacheMaxSize`, `queueMaxSize`, `queueMaxLowPrioritySize`), alongside the
+  existing GPU texture budget (`maxAtlasBytes`).
 - Bidirectional link between the 3D view and the feature scatter: a selected
   object is painted in the volume and its points turn red in the scatter, in
   either direction. Selection is keyed by `(frame, label_id)`, so the same label
@@ -22,6 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Forked from Allen Institute's Vol-E and renamed to Interactive Zarr Explorer.
+- Analysis panels (Annotation, Tracks) moved into the single left rail; the right
+  panel is gone and the canvas is wider.
+
+### Fixed
+- Anisotropic volumes rendered squashed: the loader read only each dataset's
+  coordinate transform and ignored the one declared on the multiscale, which is
+  where ilastik writes the physical voxel size. Physical size, voxel size and the
+  scale bar are now correct.
+- A volume too large for the texture atlas is loaded at reduced quality with an
+  explicit warning, instead of degrading silently behind a console message.
 
 ### Known issues
 - None currently tracked. CI runs lint, typecheck and tests as blocking checks

@@ -31,6 +31,7 @@ import type { AppProps, ControlVisibilityFlags, MultisceneUrls, MultisceneZips, 
 import CellViewerCanvasWrapper from "../CellViewerCanvasWrapper";
 import ControlPanel from "../ControlPanel";
 import CidExplorerPanel from "../CidExplorerPanel";
+import { describeAtlasOverflow, getAtlasOverflow } from "../../shared/utils/atlasOverflow";
 import { useErrorAlert } from "../ErrorAlert";
 import StyleProvider from "../StyleProvider";
 import Toolbar from "../Toolbar";
@@ -510,8 +511,24 @@ const App: React.FC<AppProps> = (props) => {
     onError,
     maskChannelName,
     maxAtlasBytes: props.maxAtlasBytes,
+    cacheMaxSize: props.cacheMaxSize,
+    queueMaxSize: props.queueMaxSize,
+    queueMaxLowPrioritySize: props.queueMaxLowPrioritySize,
   });
   const { image, setTime, setScene } = volume;
+
+  // Tell the user when the volume did not fit the atlas budget. The loader loads it anyway, so
+  // without this the only trace is a console.error and a quietly degraded image.
+  useEffect(() => {
+    if (!image) {
+      return;
+    }
+    const overflow = getAtlasOverflow(image);
+    if (overflow) {
+      showError(describeAtlasOverflow(overflow), image);
+    }
+  }, [image, showError]);
+
 
   const hasRawImage = !!(props.rawData && props.rawDims);
   // `scenes` is the single source of truth for how many volumes we can browse

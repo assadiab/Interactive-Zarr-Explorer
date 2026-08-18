@@ -21,12 +21,15 @@ import {
   composeSubregion,
   computePackedAtlasDims,
   convertSubregionToPixels,
+  type AtlasOverflow,
+  doesSpatialDimensionFitInAtlas,
+  MAX_ATLAS_EDGE,
   pickLevelToLoad,
   unitNameToSymbol,
 } from "./VolumeLoaderUtils.js";
 import ChunkPrefetchIterator from "./zarr_utils/ChunkPrefetchIterator.js";
 import {
-  getScale,
+  getEffectiveScale,
   getSourceChannelMeta,
   matchSourceScaleLevels,
   orderByDimension,
@@ -269,7 +272,8 @@ class OMEZarrLoader extends ThreadableVolumeLoader {
   }
 
   private getScale(level: number): TCZYX<number> {
-    return getScale(this.sources[0].multiscaleMetadata.datasets[level], this.sources[0].axesTCZYX);
+    const source = this.sources[0];
+    return getEffectiveScale(source.multiscaleMetadata, source.multiscaleMetadata.datasets[level], source.axesTCZYX);
   }
 
   private orderByDimension<T>(valsTCZYX: TCZYX<T>, sourceIdx = 0): T[] {
@@ -373,8 +377,24 @@ class OMEZarrLoader extends ThreadableVolumeLoader {
     const hasT = t > -1;
     const hasZ = z > -1;
 
-    const levelToLoad = pickLevelToLoad(loadSpec, this.getLevelShapesZYX(), this.getAtlasMemoryLimit(loadSpec));
+    const levelShapesZYX = this.getLevelShapesZYX();
+    const memoryLimit = this.getAtlasMemoryLimit(loadSpec);
+    const levelToLoad = pickLevelToLoad(loadSpec, levelShapesZYX, memoryLimit);
     const shapeLv = source0.scaleLevels[levelToLoad].shape;
+
+    // When even the coarsest level overflows the atlas budget, the loader still loads it — the volume
+    // just comes out lower-resolution or, past the texture edge, wrong. Record that so the app can say
+    // so out loud; on its own the engine only writes a console.error, which no user opens.
+    const overflowed = !doesSpatialDimensionFitInAtlas(levelShapesZYX[levelToLoad], loadSpec.maxAtlasEdge, memoryLimit);
+    const atlasOverflow: AtlasOverflow | undefined = overflowed
+      ? {
+          level: levelToLoad,
+          levelCount: levelShapesZYX.length,
+          shapeZYX: levelShapesZYX[levelToLoad],
+          maxAtlasEdge: loadSpec.maxAtlasEdge ?? MAX_ATLAS_EDGE,
+          maxAtlasBytes: memoryLimit?.maxBytes,
+        }
+      : undefined;
 
     const [spatialUnit, timeUnit] = this.getUnitSymbols();
 
@@ -472,7 +492,13 @@ class OMEZarrLoader extends ThreadableVolumeLoader {
       // Carry the label-channel list to the main thread. This loader runs in a web worker, so a field on the loader
       // instance is unreachable from the app; `ImageInfo` is what gets serialized across. `userData` is the extension
       // point upstream provides, which keeps this fork addition out of the core `ImageInfo` shape.
-      userData: this.labelChannels.length > 0 ? { labelChannels: this.labelChannels } : undefined,
+      userData:
+        this.labelChannels.length > 0 || atlasOverflow
+          ? {
+              ...(this.labelChannels.length > 0 ? { labelChannels: this.labelChannels } : {}),
+              ...(atlasOverflow ? { atlasOverflow } : {}),
+            }
+          : undefined,
     };
 
     // The `LoadSpec` passed in at this stage should represent the subset which this loader loads, not that

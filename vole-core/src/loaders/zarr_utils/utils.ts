@@ -146,6 +146,32 @@ export function getScale(dataset: OMEDataset | OMEMultiscale, orderTCZYX: TCZYX<
 }
 
 /**
+ * Physical size of one voxel for `dataset`, in TCZYX order, composing both transforms NGFF
+ * allows.
+ *
+ * A multiscale may carry `coordinateTransformations` of its own in addition to each dataset's,
+ * and the effective transform is the two composed — for scale transforms, an element-wise
+ * product. Reading only the dataset's own loses any scale expressed at the multiscale level,
+ * which is exactly where ilastik's OME-Zarr exporter puts the physical voxel size while leaving
+ * level 0 at all-ones. The volume then renders as if its voxels were cubic, so anisotropic data
+ * comes out visibly squashed.
+ */
+export function getEffectiveScale(
+  multiscale: OMEMultiscale,
+  dataset: OMEDataset,
+  orderTCZYX: TCZYX<number>
+): TCZYX<number> {
+  const datasetScale = getScale(dataset, orderTCZYX);
+  // Checked here rather than left to `getScale`, whose warning would otherwise fire for every
+  // level of every well-formed file that simply has no multiscale-level transform.
+  if (multiscale.coordinateTransformations === undefined) {
+    return datasetScale;
+  }
+  const multiscaleScale = getScale(multiscale, orderTCZYX);
+  return datasetScale.map((value, i) => value * multiscaleScale[i]) as TCZYX<number>;
+}
+
+/**
  * Defines a partial order of zarr arrays based on their size. Specifically:
  * - If array size x, y, z are all equal, the arrays are equal
  * - otherwise, if all xyz of `a` are less than or equal to those of `b`, `a` is less than `b` (and vice versa)

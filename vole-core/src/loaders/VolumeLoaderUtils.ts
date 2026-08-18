@@ -102,6 +102,23 @@ export function bytesPerSample(dtype: NumberType): number {
  * ({@link Channel.dataTexture}). Overlaying two sources doubles the cost of a level the
  * edge test still calls a fit.
  */
+/**
+ * Reported when even the coarsest multiscale level overflows the atlas budget.
+ *
+ * The load still goes ahead — the volume simply comes out coarser than asked for, or past the
+ * texture edge, wrong. Travels to the app in `ImageInfo.userData` because the loader runs in a
+ * web worker, so the app can tell the user instead of leaving a console.error nobody reads.
+ */
+export type AtlasOverflow = {
+  /** Level actually loaded — the coarsest available. */
+  level: number;
+  levelCount: number;
+  shapeZYX: [number, number, number];
+  maxAtlasEdge: number;
+  /** Undefined when no memory budget applied, only the edge limit. */
+  maxAtlasBytes?: number;
+};
+
 export type AtlasMemoryLimit = {
   /** Total bytes the channel textures of one volume may occupy. */
   maxBytes: number;
@@ -117,7 +134,7 @@ export function atlasBytes(spatialDimZYX: [number, number, number], bytesPerVoxe
   return tiles.y * x * (tiles.x * y) * bytesPerVoxel;
 }
 
-function doesSpatialDimensionFitInAtlas(
+export function doesSpatialDimensionFitInAtlas(
   spatialDimZYX: [number, number, number],
   maxAtlasEdge = MAX_ATLAS_EDGE,
   memory?: AtlasMemoryLimit
@@ -210,6 +227,8 @@ export function pickLevelToLoadUnscaled(
     levelToLoad = spatialDimsZYX.length - 1;
   }
   const smallestDims = spatialDimsZYX[levelToLoad];
+  // Kept for the console, but the user-facing half of this is `atlasOverflow` in `ImageInfo.userData`:
+  // a console.error nobody opens is not a warning. See `OmeZarrLoader.createImageInfo`.
   console.error(
     `Volume is too large; no multiscale level found that fits in preferred memory footprint. Selected level ${levelToLoad}  has dimensions `,
     smallestDims,

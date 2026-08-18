@@ -11,6 +11,7 @@ import type {
 } from "../loaders/zarr_utils/types.js";
 import {
   getDimensionCount,
+  getEffectiveScale,
   getScale,
   getSourceChannelMeta,
   matchSourceScaleLevels,
@@ -292,6 +293,47 @@ describe("zarr_utils", () => {
 
     it("defaults to `[1, 1, 1, 1, 1]` if no coordinate transformations are present at all", () => {
       expect(getScale({ path: "0" }, [0, 1, 2, 3, 4])).to.deep.equal([1, 1, 1, 1, 1]);
+    });
+  });
+
+  describe("getEffectiveScale", () => {
+    const dataset = { path: "0", coordinateTransformations: [{ type: "scale" as const, scale: [1, 1, 1, 1, 1] }] };
+    const identity: TCZYX<number> = [0, 1, 2, 3, 4];
+
+    it("falls back to the dataset's own scale when the multiscale has none", () => {
+      const multiscale = { axes: [], datasets: [dataset] };
+      expect(getEffectiveScale(multiscale, MOCK_DATASET, identity)).to.deep.equal([1, 2, 3, 4, 5]);
+    });
+
+    it("composes the multiscale transform onto the dataset's", () => {
+      // The shape ilastik's exporter writes: physical voxel size on the multiscale, level 0 at
+      // all-ones. Ignoring the former renders anisotropic data as if it were cubic.
+      const multiscale = {
+        axes: [],
+        datasets: [dataset],
+        coordinateTransformations: [{ type: "scale" as const, scale: [20, 1, 6, 1.3, 1.3] }],
+      };
+      expect(getEffectiveScale(multiscale, dataset, identity)).to.deep.equal([20, 1, 6, 1.3, 1.3]);
+    });
+
+    it("multiplies element-wise on a downsampled level", () => {
+      const level1 = { path: "1", coordinateTransformations: [{ type: "scale" as const, scale: [1, 1, 2, 2, 2] }] };
+      const multiscale = {
+        axes: [],
+        datasets: [dataset, level1],
+        coordinateTransformations: [{ type: "scale" as const, scale: [20, 1, 6, 1.5, 1.5] }],
+      };
+      expect(getEffectiveScale(multiscale, level1, identity)).to.deep.equal([20, 1, 12, 3, 3]);
+    });
+
+    it("respects the axis order", () => {
+      const multiscale = {
+        axes: [],
+        datasets: [dataset],
+        coordinateTransformations: [{ type: "scale" as const, scale: [1, 2, 3, 4, 5] }],
+      };
+      // Same permutation the getScale tests use: dimension i of the file lands at TCZYX slot.
+      expect(getEffectiveScale(multiscale, MOCK_DATASET, [3, 1, 4, 0, 2])).to.deep.equal([16, 4, 25, 1, 9]);
     });
   });
 

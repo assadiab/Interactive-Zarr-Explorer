@@ -23,15 +23,18 @@ import { subscribeImageToState, subscribeViewToState } from "../../state/subscri
 import type { ViewerState } from "../../state/types";
 import useVolume, { ImageLoadStatus } from "../useVolume";
 import { loadMeasurements } from "../../shared/utils/loadMeasurements";
+import { parseTracksCsv } from "../../shared/utils/loadTracks";
 import type { ScenePath } from "../../shared/utils/sceneStore";
 import type { AppProps, ControlVisibilityFlags, MultisceneUrls, MultisceneZips, UseImageEffectType } from "./types";
 
 import CellViewerCanvasWrapper from "../CellViewerCanvasWrapper";
 import ControlPanel from "../ControlPanel";
-import RightPanel from "../RightPanel";
 import { useErrorAlert } from "../ErrorAlert";
 import StyleProvider from "../StyleProvider";
 import Toolbar from "../Toolbar";
+import ObjectPicker from "../ObjectPicker";
+import SelectionHighlighter from "../SelectionHighlighter";
+import TracksUpdater from "../TracksUpdater";
 import ChannelUpdater from "./ChannelUpdater";
 
 import "../../assets/styles/globals.css";
@@ -252,6 +255,33 @@ const App: React.FC<AppProps> = (props) => {
     };
   }, [zipData]);
 
+  // Parse the optional tracking CSV (pushed as text, or picked as a File) into the store so `TracksUpdater` can overlay
+  // the trajectories. Kept separate from the zarr; cleared when no CSV is provided.
+  const { tracksCsv } = props;
+  useEffect(() => {
+    if (!tracksCsv) {
+      useViewerState.getState().setTracking(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const text = typeof tracksCsv === "string" ? tracksCsv : await tracksCsv.text();
+        const tracking = parseTracksCsv(text);
+        if (!cancelled) {
+          useViewerState.getState().setTracking(tracking);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          showError(e);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tracksCsv, showError]);
+
   const maskChannelName = props.viewerChannelSettings?.maskChannelName;
 
   // we need to keep track of channel ranges for remapping control points
@@ -437,9 +467,6 @@ const App: React.FC<AppProps> = (props) => {
 
   // const [channelGroupedByType, setChannelGroupedByType] = useState<ChannelGrouping>({});
   const [controlPanelClosed, setControlPanelClosed] = useState(() => window.innerWidth < CONTROL_PANEL_CLOSE_WIDTH);
-  // The right analysis panel (Annotation, …) only exists once a measurement table is loaded.
-  const hasMeasurements = useViewerState((s) => s.measurements !== null);
-  const [rightPanelClosed, setRightPanelClosed] = useState(false);
   // Only allow auto-close once while the screen is too narrow.
   const [hasAutoClosedControlPanel, setHasAutoClosedControlPanel] = useState(false);
 
@@ -619,6 +646,9 @@ const App: React.FC<AppProps> = (props) => {
             version={volume.channelVersions[index]}
           />
         ))}
+        <TracksUpdater view3d={view3d} image={image} />
+        <ObjectPicker view3d={view3d} image={image} />
+        <SelectionHighlighter view3d={view3d} image={image} />
         <Sider
           className="control-panel-holder"
           collapsible={true}
@@ -678,18 +708,6 @@ const App: React.FC<AppProps> = (props) => {
             />
           </Content>
         </Layout>
-        {hasMeasurements && (
-          <Sider
-            className="control-panel-holder"
-            collapsible={true}
-            collapsedWidth={50}
-            trigger={null}
-            collapsed={rightPanelClosed}
-            width={410}
-          >
-            <RightPanel collapsed={rightPanelClosed} setCollapsed={setRightPanelClosed} />
-          </Sider>
-        )}
       </Layout>
     </StyleProvider>
   );

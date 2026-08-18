@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { type Gate, idsInGate } from "../state/selection";
 import { useViewerState } from "../state/store";
+import { makeObjectKey, type ObjectKey } from "../shared/utils/objectKey";
 
 /**
  * Interactive feature scatter for the per-object measurement table, rendered
@@ -100,6 +101,9 @@ export default function ScatterPanel(): React.ReactElement {
     const xs = measurements.features[xFeat] ?? [];
     const ys = measurements.features[yFeat] ?? [];
     const ids = measurements.labelIds;
+    // Points carry the composite (frame, label_id) key: a bare label id is ambiguous across timepoints, so click and
+    // box-select would otherwise select unrelated objects in other frames.
+    const objectKeys = ids.map((id, row) => makeObjectKey(measurements.frames ? measurements.frames[row] : 0, id));
     const colorVals = colorByFeature ? measurements.features[colorByFeature] : null;
 
     // Per-point base color: color-by-feature gradient, else the color of the
@@ -123,7 +127,7 @@ export default function ScatterPanel(): React.ReactElement {
       mode: "markers",
       x: xs,
       y: ys,
-      customdata: ids,
+      customdata: objectKeys,
       hovertemplate: `id %{customdata}<br>${xFeat}=%{x:.4g}<br>${yFeat}=%{y:.4g}<extra></extra>`,
       marker: {
         size: 7,
@@ -208,16 +212,16 @@ export default function ScatterPanel(): React.ReactElement {
     gd.removeAllListeners?.("plotly_click");
     gd.removeAllListeners?.("plotly_selected");
     gd.on("plotly_click", (e) => {
-      const id = e.points?.[0]?.customdata as number | undefined;
-      if (typeof id === "number") {
-        toggleId(id);
+      const key = e.points?.[0]?.customdata as ObjectKey | undefined;
+      if (typeof key === "number") {
+        toggleId(key);
       }
     });
     gd.on("plotly_selected", (e) => {
       if (!e || !e.points) {
         return;
       }
-      const picked = e.points.map((p) => p.customdata as number).filter((v) => typeof v === "number");
+      const picked = e.points.map((p) => p.customdata as ObjectKey).filter((v) => typeof v === "number");
       setSelectedIds(picked);
       // Box-select reports the drawn rectangle in data coords; arm "Save as gate".
       const range = e.range as { x?: [number, number]; y?: [number, number] } | undefined;
@@ -281,11 +285,13 @@ export default function ScatterPanel(): React.ReactElement {
   // Export ALL objects with one membership column (0/1) per gate, in one CSV.
   const exportAll = (): void => {
     if (!measurements) return;
-    const cols = ["label_id", ...featureNames, ...gates.map((g) => g.name)];
+    const cols = ["frame", "label_id", ...featureNames, ...gates.map((g) => g.name)];
     const lines = [cols.join(",")];
     measurements.labelIds.forEach((id, row) => {
-      const gateCols = gateIdSets.map((set) => (set.has(id) ? 1 : 0));
-      lines.push([id, ...featureNames.map((f) => measurements.features[f][row]), ...gateCols].join(","));
+      const frame = measurements.frames ? measurements.frames[row] : 0;
+      const key = makeObjectKey(frame, id);
+      const gateCols = gateIdSets.map((set) => (set.has(key) ? 1 : 0));
+      lines.push([frame, id, ...featureNames.map((f) => measurements.features[f][row]), ...gateCols].join(","));
     });
     download(lines.join("\n"), "features_with_gates.csv");
   };

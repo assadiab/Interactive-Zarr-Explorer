@@ -1,17 +1,25 @@
 import type { StateCreator } from "zustand";
 
+import type { TrackingData } from "../shared/utils/loadTracks";
+import { makeObjectKey, type ObjectKey } from "../shared/utils/objectKey";
 import type { ViewerStore } from "./store";
 
 /**
  * Per-object measurement table loaded from the OME-Zarr `tables/measurements`
  * group. `labelIds[i]` is the object id of row `i`; `features[name][i]` is that
- * object's value for feature `name`. `index` maps a label_id back to its row so
- * the views can look up an object in O(1) on a pick.
+ * object's value for feature `name`.
+ *
+ * Objects are identified by the composite `(frame, labelId)` — label ids are
+ * numbered per timepoint, so the same id in two frames is two different objects
+ * (see {@link ObjectKey}). `index` maps that composite key back to its row, so a
+ * pick resolves to an object in O(1) without ambiguity across time.
  */
 export type MeasurementTable = {
   labelIds: number[];
+  /** Frame of each row, or `null` when the table has no time column (single-timepoint data). */
+  frames: number[] | null;
   features: Record<string, number[]>;
-  index: Map<number, number>;
+  index: Map<ObjectKey, number>;
 };
 
 /**
@@ -38,14 +46,32 @@ export type AnnotationLabel = {
   id: string;
   name: string;
   color: string;
-  ids: Set<number>;
+  ids: Set<ObjectKey>;
+};
+
+/** How the tracking overlay is drawn. Lives in the store so the panel and the 3D updater stay in sync. */
+export type TrackDisplaySettings = {
+  showTracks: boolean;
+  showDetections: boolean;
+  /** Frames of trailing trajectory to draw; `Infinity` draws the whole history up to the current frame. */
+  tailLength: number;
+  /** Trajectory line opacity, in [0, 1]. */
+  opacity: number;
+  /** Trajectory line width, in screen pixels. */
+  lineWidth: number;
 };
 
 export type SelectionState = {
   /** The measurement table for the current scene, or null until loaded. */
   measurements: MeasurementTable | null;
-  /** Currently selected object label_ids (shared across scatter / 3D / slices). */
-  selectedIds: Set<number>;
+  /** Parsed tracking result (trajectories over time), or null when none is loaded. */
+  tracking: TrackingData | null;
+  /** Display options for the tracking overlay. */
+  trackSettings: TrackDisplaySettings;
+  /** Track singled out for inspection (dims the others), or null when none is selected. */
+  selectedTrackId: number | null;
+  /** Currently selected objects, keyed by (frame, label_id) — see {@link ObjectKey}. */
+  selectedIds: Set<ObjectKey>;
   /** Feature whose value colors the scatter points, or null for a flat color. */
   colorByFeature: string | null;
   /** Saved gates (named populations); kept until removed, exported together. */
@@ -56,8 +82,14 @@ export type SelectionState = {
 
 export type SelectionActions = {
   setMeasurements: (table: MeasurementTable | null) => void;
-  setSelectedIds: (ids: Iterable<number>) => void;
-  toggleId: (id: number) => void;
+  /** Set (or clear, with null) the tracking result to overlay on the volume. */
+  setTracking: (tracking: TrackingData | null) => void;
+  /** Update one or more tracking display options. */
+  setTrackSettings: (settings: Partial<TrackDisplaySettings>) => void;
+  /** Single out a track for inspection, or pass null to clear. */
+  setSelectedTrackId: (trackId: number | null) => void;
+  setSelectedIds: (ids: Iterable<ObjectKey>) => void;
+  toggleId: (id: ObjectKey) => void;
   clearSelection: () => void;
   setColorByFeature: (feature: string | null) => void;
   /** Append a new saved gate. */
@@ -70,9 +102,9 @@ export type SelectionActions = {
   removeLabel: (id: string) => void;
   renameLabel: (id: string, name: string) => void;
   /** Tag the given object ids with a label (add to its membership). */
-  addIdsToLabel: (id: string, ids: Iterable<number>) => void;
+  addIdsToLabel: (id: string, ids: Iterable<ObjectKey>) => void;
   /** Untag the given object ids from a label. */
-  removeIdsFromLabel: (id: string, ids: Iterable<number>) => void;
+  removeIdsFromLabel: (id: string, ids: Iterable<ObjectKey>) => void;
   clearLabels: () => void;
 };
 
@@ -80,7 +112,10 @@ export type SelectionSlice = SelectionState & SelectionActions;
 
 const defaultSelectionState: SelectionState = {
   measurements: null,
-  selectedIds: new Set<number>(),
+  tracking: null,
+  trackSettings: { showTracks: true, showDetections: true, tailLength: Infinity, opacity: 1, lineWidth: 2 },
+  selectedTrackId: null,
+  selectedIds: new Set<ObjectKey>(),
   colorByFeature: null,
   gates: [],
   labels: [],
@@ -91,13 +126,20 @@ export const createSelectionSlice: StateCreator<ViewerStore, [], [], SelectionSl
 
   setMeasurements: (table) =>
     // New table => previous selection / gates / labels no longer apply.
-    set({ measurements: table, selectedIds: new Set<number>(), gates: [], labels: [], colorByFeature: null }),
+    set({ measurements: table, selectedIds: new Set<ObjectKey>(), gates: [], labels: [], colorByFeature: null }),
 
-  setSelectedIds: (ids) => set({ selectedIds: new Set<number>(ids) }),
+  // A new tracking result invalidates any track singled out from the previous one.
+  setTracking: (tracking) => set({ tracking, selectedTrackId: null }),
+
+  setSelectedTrackId: (trackId) => set({ selectedTrackId: trackId }),
+
+  setTrackSettings: (settings) => set(({ trackSettings }) => ({ trackSettings: { ...trackSettings, ...settings } })),
+
+  setSelectedIds: (ids) => set({ selectedIds: new Set<ObjectKey>(ids) }),
 
   toggleId: (id) =>
     set(({ selectedIds }) => {
-      const next = new Set(selectedIds);
+      const next = new Set<ObjectKey>(selectedIds);
       if (next.has(id)) {
         next.delete(id);
       } else {
@@ -106,7 +148,7 @@ export const createSelectionSlice: StateCreator<ViewerStore, [], [], SelectionSl
       return { selectedIds: next };
     }),
 
-  clearSelection: () => set({ selectedIds: new Set<number>() }),
+  clearSelection: () => set({ selectedIds: new Set<ObjectKey>() }),
 
   setColorByFeature: (feature) => set({ colorByFeature: feature }),
 
@@ -133,7 +175,7 @@ export const createSelectionSlice: StateCreator<ViewerStore, [], [], SelectionSl
 
   removeIdsFromLabel: (id, ids) =>
     set(({ labels }) => {
-      const drop = new Set(ids);
+      const drop = new Set<ObjectKey>(ids);
       return {
         labels: labels.map((l) =>
           l.id === id ? { ...l, ids: new Set([...l.ids].filter((v) => !drop.has(v))) } : l
@@ -145,11 +187,12 @@ export const createSelectionSlice: StateCreator<ViewerStore, [], [], SelectionSl
 });
 
 /**
- * The set of label_ids inside a gate (both features within their ranges). Used
- * by the scatter (which points belong to a gate) and CSV export (membership).
+ * The set of objects inside a gate (both features within their ranges), keyed by
+ * `(frame, label_id)`. Used by the scatter (which points belong to a gate) and
+ * CSV export (membership).
  */
-export function idsInGate(measurements: MeasurementTable | null, gate: Gate): Set<number> {
-  const inside = new Set<number>();
+export function idsInGate(measurements: MeasurementTable | null, gate: Gate): Set<ObjectKey> {
+  const inside = new Set<ObjectKey>();
   if (!measurements) {
     return inside;
   }
@@ -164,7 +207,7 @@ export function idsInGate(measurements: MeasurementTable | null, gate: Gate): Se
     const xv = xs[row];
     const yv = ys[row];
     if (xv >= x0 && xv <= x1 && yv >= y0 && yv <= y1) {
-      inside.add(measurements.labelIds[row]);
+      inside.add(makeObjectKey(measurements.frames ? measurements.frames[row] : 0, measurements.labelIds[row]));
     }
   }
   return inside;

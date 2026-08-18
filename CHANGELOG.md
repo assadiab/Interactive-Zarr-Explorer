@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local OME-Zarr `.zip` loading via a lazy `ZipStore` (zarrita + zip.js).
 - Interactive feature scatter (Plotly) with selection, gating and CSV export.
 - Correlation heatmap and manual annotation panels.
+- OME-Zarr `labels/` groups load as an extra channel, and clicking an object in
+  the 3D view selects it.
+- Bidirectional link between the 3D view and the feature scatter: a selected
+  object is painted in the volume and its points turn red in the scatter, in
+  either direction. Selection is keyed by `(frame, label_id)`, so the same label
+  id in two timepoints stays two distinct objects.
 - Project governance & tooling: LICENSE, CITATION.cff, CONTRIBUTING,
   CODE_OF_CONDUCT, SECURITY, CHANGELOG, issue/PR templates, root CI, CodeQL,
   Dependabot.
@@ -18,9 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Forked from Allen Institute's Vol-E and renamed to Interactive Zarr Explorer.
 
 ### Known issues
-- `vole-app` typecheck reports one pre-existing `three` version `Box3` mismatch
-  (`useVolume.ts`), unrelated to this fork. CI typecheck/lint are non-blocking
-  until cleaned up.
+- CI `lint` is non-blocking (`continue-on-error`) for both packages because of
+  inherited lint debt. `typecheck` is blocking since the `three` `Box3` mismatch
+  in `useVolume.ts` was resolved.
 
 <!--
 Release checklist (maintainer):

@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 
 import { useViewerState } from "../state/store";
+import { makeObjectKey, type ObjectKey } from "../shared/utils/objectKey";
 
 /**
  * Manual per-object annotation, inspired by Allen's timelapse-colorizer
@@ -30,7 +31,7 @@ export default function AnnotationPanel(): React.ReactElement {
       id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `l${Date.now()}`,
       name: `Label ${labels.length + 1}`,
       color: LABEL_PALETTE[labels.length % LABEL_PALETTE.length],
-      ids: new Set<number>(),
+      ids: new Set<ObjectKey>(),
     });
   };
 
@@ -57,11 +58,13 @@ export default function AnnotationPanel(): React.ReactElement {
   // All objects + one 0/1 membership column per label, in a single CSV.
   const exportAll = (): void => {
     if (!measurements) return;
-    const cols = ["label_id", ...featureNames, ...labels.map((l) => l.name)];
+    const cols = ["frame", "label_id", ...featureNames, ...labels.map((l) => l.name)];
     const lines = [cols.join(",")];
     measurements.labelIds.forEach((id, row) => {
-      const labelCols = labels.map((l) => (l.ids.has(id) ? 1 : 0));
-      lines.push([id, ...featureNames.map((f) => measurements.features[f][row]), ...labelCols].join(","));
+      const frame = measurements.frames ? measurements.frames[row] : 0;
+      const key = makeObjectKey(frame, id);
+      const labelCols = labels.map((l) => (l.ids.has(key) ? 1 : 0));
+      lines.push([frame, id, ...featureNames.map((f) => measurements.features[f][row]), ...labelCols].join(","));
     });
     download(lines.join("\n"), "annotations.csv");
   };

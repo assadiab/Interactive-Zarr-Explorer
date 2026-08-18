@@ -7,6 +7,10 @@ import type { ViewerChannelSettings } from "../src/aics-image-viewer/shared/util
  * Standalone page (route `/local`) that loads a local OME-Zarr `.zip` straight
  * from an `<input type="file">`, with no landing page or routing state. The
  * measurement table and the Features (scatter) tab are handled inside `App`.
+ *
+ * The tracking CSV gets its own input here. In the hosted flow the app is handed the CSV
+ * that sits next to the zarr, but a browser cannot read a sibling file off local disk from
+ * a picked `.zip`, so on this page it has to be picked too.
  */
 
 const TOP_BAR_PX = 48;
@@ -31,6 +35,7 @@ const DEFAULT_CHANNEL_SETTINGS: ViewerChannelSettings = {
 
 export default function LocalZipViewer(): React.ReactElement {
   const [zipFile, setZipFile] = useState<File | undefined>(undefined);
+  const [tracksCsv, setTracksCsv] = useState<File | undefined>(undefined);
 
   // The measurement table is loaded inside `App` (keyed on `zipData`), so this
   // page only has to hand the picked file to the viewer.
@@ -47,14 +52,19 @@ export default function LocalZipViewer(): React.ReactElement {
         }}
       >
         <input type="file" accept=".zip,application/zip" onChange={(e) => setZipFile(e.target.files?.[0])} />
+        <label style={{ marginLeft: 16, fontSize: 12 }}>
+          Tracking CSV{" "}
+          <input type="file" accept=".csv,text/csv" onChange={(e) => setTracksCsv(e.target.files?.[0])} />
+        </label>
       </div>
 
       <div style={{ flex: 1, minHeight: 0 }}>
         {zipFile && (
           <ImageViewerApp
-            key={zipFile.name}
+            key={`${zipFile.name}:${tracksCsv?.name ?? ""}`}
             imageUrl=""
             zipData={zipFile}
+            tracksCsv={tracksCsv}
             viewerChannelSettings={DEFAULT_CHANNEL_SETTINGS}
             cellId=""
             imageDownloadHref=""

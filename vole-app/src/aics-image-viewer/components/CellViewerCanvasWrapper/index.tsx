@@ -36,7 +36,17 @@ const ViewerWrapper: React.FC<ViewerWrapperProps> = (props) => {
   const view3dviewerRef = React.createRef<HTMLDivElement>();
 
   React.useEffect(() => {
-    view3dviewerRef.current!.appendChild(props.view3d.getDOMElement());
+    const container = view3dviewerRef.current!;
+    container.appendChild(props.view3d.getDOMElement());
+
+    // The viewer sizes its render targets from this container, but nothing told it when the
+    // container finally *had* a size: `view3d.resize` is otherwise only reached on a view-mode
+    // change. Mounted before layout, it kept a zero-height resolution — which makes the pick
+    // shader divide by `iResolution.y` and discard every pixel, so picking was dead until the
+    // user happened to switch 3D↔XY.
+    const observer = new ResizeObserver(() => props.view3d.resize(null));
+    observer.observe(container);
+    return () => observer.disconnect();
   }, [props.view3d, view3dviewerRef]);
 
   const renderOverlay = (): React.ReactNode => {

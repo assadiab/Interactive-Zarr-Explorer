@@ -25,6 +25,7 @@ zarr/
 # --- Agent context notes (kept locally, not part of the project source) ---
 CLAUDE.md
 CLAUDE-*.md
+TASKS.md
 
 # --- Scratch / benchmark scripts ---
 bench_*.mjs

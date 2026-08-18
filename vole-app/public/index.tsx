@@ -70,6 +70,14 @@ const routes: RouteObject[] = [
     },
     errorElement: <ErrorPage />,
   },
+  {
+    path: "catalog",
+    lazy: async () => {
+      const CatalogDemoViewer = (await import("./CatalogDemoViewer")).default;
+      return { Component: () => <CatalogDemoViewer /> };
+    },
+    errorElement: <ErrorPage />,
+  },
 ];
 
 const router = createBrowserRouter(routes, { basename: basename });

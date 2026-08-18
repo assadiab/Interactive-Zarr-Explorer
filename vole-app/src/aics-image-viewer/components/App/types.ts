@@ -1,6 +1,7 @@
 import type { RawArrayData, RawArrayInfo, View3d, Volume } from "@aics/vole-core";
 import type { MutableRefObject } from "react";
 
+import type { CidCatalog } from "../../shared/utils/cidCatalog";
 import type { MetadataRecord } from "../../shared/types";
 import type { ViewerChannelSettings } from "../../shared/utils/viewerChannelSettings";
 import type { ViewerState } from "../../state/types";
@@ -73,6 +74,16 @@ export interface AppProps {
   /** Path to the zarr group inside each zip. Omit to auto-detect. */
   zipRootPath?: string;
   /**
+   * Labels for the scene picker, one per scene, in scene order. Omit to let the viewer
+   * name scenes itself (file names for a `File`, URLs for a URL source, else "Scene N").
+   *
+   * Needed whenever the scenes come from plain `Blob`s: a `Blob` fetched by a host
+   * application carries no `name`, so the derived labels would all read "Scene N".
+   * Entries past the end of the list — or empty ones — fall back to the derived name,
+   * so a partial list is safe.
+   */
+  sceneNames?: string[];
+  /**
    * Optional ilastik-style tracking result to overlay as trajectories on the volume. Read separately from the zarr
    * (nothing is written back). Pass the CSV text directly (e.g. pushed by an automated pipeline) or a `File` (e.g. from
    * a file picker); either is parsed by `parseTracksCsv`.
@@ -88,6 +99,20 @@ export interface AppProps {
    * many channels a volume carries.
    */
   maxAtlasBytes?: number;
+  // FOURTH WAY TO GET DATA INTO THE VIEWER: let the user pick from a catalog the host declares
+
+  /**
+   * Related datasets the host offers, browsable from an explorer inside the viewer.
+   *
+   * Takes precedence over `zipData` when set, and is then the ONLY source of data: the
+   * starting image is declared as `initialOpenId` rather than pushed separately, so there
+   * is never a question of which source wins. Absent, nothing about the other entry points
+   * changes.
+   *
+   * The host keeps its database — the viewer only ever sees ids, names, a parent link and
+   * the blobs {@link CidCatalog.loadDataset} hands back.
+   */
+  cidCatalog?: CidCatalog;
 
   viewerChannelSettings?: ViewerChannelSettings;
 

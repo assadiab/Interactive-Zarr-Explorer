@@ -394,8 +394,14 @@ const useVolume = (
     // A brand-new set of scenes was loaded, so any saved per-scene settings from the previous dataset are stale.
     channelSettingsBySceneRef.current.clear();
     loadedSceneRef.current = null;
+    // Nothing to show: `createVolume` would ask the loader for scene 0 of an empty list and
+    // fail on an undefined path. Callers that browse a catalog can legitimately end up with
+    // no scene at all — every other entry point always supplies at least one.
+    if (scenePaths.length === 0) {
+      return;
+    }
     loadSceneVolume(useViewerState.getState().scene);
-  }, [loadSceneVolume]);
+  }, [loadSceneVolume, scenePaths]);
 
   const setTime = useCallback(
     (view3d: View3d, time: number): void => {

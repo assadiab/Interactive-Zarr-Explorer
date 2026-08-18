@@ -1,0 +1,197 @@
+name: Release
+
+# Builds both packages and publishes them as tarballs attached to a GitHub
+# Release, so an external project can install them without cloning this repo
+# (the app depends on the engine through `file:../vole-core`, which is
+# meaningless outside the monorepo — step 5 rewrites it to the release URL).
+#
+# Manual trigger only. Prefer a prerelease tag (the default) while the
+# repository history is not frozen: the first real tag is meant to be v0.1.0.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag, e.g. v0.0.1-integration-test.1"
+        required: true
+      prerelease:
+        description: "Mark the release as a prerelease (disposable test build)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20 # matches pixi's nodejs >=20,<21 pin
+          cache: npm
+          cache-dependency-path: |
+            vole-core/package-lock.json
+            vole-app/package-lock.json
+
+      # --- 1. Engine (vole-core) ------------------------------------------
+      # `npm ci` (not `npm install`) so the published build uses exactly the
+      # dependency versions the CI validated.
+      - name: Build the engine
+        working-directory: vole-core
+        run: |
+          npm ci
+          npm run build
+
+      # --- 2. Application (vole-app) --------------------------------------
+      # Installed with --ignore-scripts, like ci.yml: the `prepare` script of
+      # both packages re-runs the whole build.
+      - name: Build the application
+        working-directory: vole-app
+        run: |
+          npm ci --ignore-scripts
+          npm run generateTypes || echo "::warning::generateTypes exited non-zero (known pre-existing type error, cf. ci.yml). Declarations are still emitted — the tarball check below enforces that."
+          npm run postcss
+          npm run transpileES
+
+      # --- 3. Fork-distinct versions --------------------------------------
+      # These are MODIFIED forks. Publishing them as plain @aics/vole-core@4.9.1
+      # would claim to be Allen's package at a version that exists upstream with
+      # different content. The suffix keeps the identity unambiguous; the run
+      # number makes every test build a distinct version, so a consumer's npm
+      # cache can never serve a stale tarball under a version already seen.
+      # Done after both installs: bumping earlier would desync the lockfiles
+      # and break `npm ci`.
+      #
+      # The same step drops the `prepare` script from both manifests, because
+      # `npm pack --ignore-scripts` does NOT stop npm from re-running `prepare`
+      # at pack time. Both packages define `prepare` as a full rebuild, and in
+      # vole-app that rebuild fails: `prepare` calls `npm run build`, where the
+      # known pre-existing type error is fatal — unlike the explicit build step
+      # above, which tolerates it on purpose. Dropping the script is also right
+      # for the published artifact: the tarball ships a prebuilt `es/`, so a
+      # consumer has nothing to prepare.
+      - name: Suffix the package versions and drop the prepare script
+        run: |
+          for pkg in vole-core vole-app; do
+            base=$(node -p "require('./$pkg/package.json').version")
+            npm --prefix "$pkg" pkg set version="$base-izx.${{ github.run_number }}"
+            npm --prefix "$pkg" pkg delete scripts.prepare
+            echo "$pkg -> $(node -p "require('./$pkg/package.json').version")"
+          done
+
+      - name: Pack the engine
+        working-directory: vole-core
+        run: |
+          mkdir -p ../dist
+          npm pack --ignore-scripts --pack-destination ../dist
+
+      # --- 4. Point the app at a location valid outside this repo ----------
+      - name: Point the application at the packed engine
+        working-directory: vole-app
+        env:
+          # Workflow inputs go through the environment, never interpolated
+          # straight into the shell (script injection — CodeQL flags it).
+          VERSION: ${{ inputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          CORE=$(basename "$(ls ../dist/aics-vole-core-*.tgz)")
+          npm pkg set "dependencies.@aics/vole-core=https://github.com/$REPO/releases/download/$VERSION/$CORE"
+
+      - name: Pack the application
+        working-directory: vole-app
+        run: npm pack --ignore-scripts --pack-destination ../dist
+
+      # --- 5. Check the archives ------------------------------------------
+      # Presence checks only — they catch a partial build, which is the failure
+      # mode that silently ships a broken package. The end-to-end install check
+      # runs after the release, once the URLs exist.
+      - name: Check the archives
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          CORE=$(ls dist/aics-vole-core-*.tgz)
+          APP=$(ls dist/aics-vole-app-*.tgz)
+
+          # Each archive is listed ONCE into a variable, and every check reads
+          # that variable. Never `tar … | grep -q`: grep closes the pipe on its
+          # first match, tar dies of EPIPE, and `pipefail` then reports the
+          # whole pipeline as failed — so a check would fail precisely when it
+          # SUCCEEDS. That false negative aborted run 31604147613.
+          CORE_FILES=$(tar -tzf "$CORE")
+          APP_FILES=$(tar -tzf "$APP")
+
+          need() { # need <archive name> <listing> <exact path> <human message>
+            grep -qxF -- "$3" <<< "$2" \
+              || { echo "::error::$1 is missing $3 — $4, aborting"; exit 1; }
+          }
+          need_any() { # need_any <archive name> <listing> <regex> <human message>
+            grep -qE -- "$3" <<< "$2" \
+              || { echo "::error::$1 has no file matching $3 — $4, aborting"; exit 1; }
+          }
+
+          need "$CORE" "$CORE_FILES" "package/es/index.js"         "engine not transpiled"
+          need "$CORE" "$CORE_FILES" "package/es/types/index.d.ts" "engine type declarations not emitted"
+          need "$APP"  "$APP_FILES"  "package/es/index.js"         "app not transpiled"
+          need_any "$APP" "$APP_FILES" "^package/type-declarations/.*\.d\.ts$" "generateTypes emitted nothing"
+          need_any "$APP" "$APP_FILES" "^package/es/.*\.css$"                  "postcss emitted no stylesheet"
+
+          # The app manifest must actually point at this release, otherwise the
+          # consumer install resolves to a file: path that does not exist.
+          MANIFEST=$(tar -xzOf "$APP" package/package.json)
+          node -e '
+              const p = JSON.parse(require("fs").readFileSync(0, "utf8"));
+              const dep = p.dependencies["@aics/vole-core"];
+              const version = process.env.VERSION;
+              if (!dep.includes(version)) {
+                console.error(`::error::packed app depends on "${dep}", which does not point at ${version}`);
+                process.exit(1);
+              }
+              console.log(`packed ${p.name}@${p.version} -> ${dep}`);
+            ' <<< "$MANIFEST"
+          ls -la dist/
+
+      # --- 6. Publish ------------------------------------------------------
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          PRERELEASE_FLAG: ${{ inputs.prerelease && '--prerelease' || '' }}
+        run: |
+          gh release create "$VERSION" dist/*.tgz \
+            --title "$VERSION" \
+            --generate-notes \
+            $PRERELEASE_FLAG
+
+      # --- 7. End-to-end check --------------------------------------------
+      # Installs the published app tarball from its public URL, in a project
+      # carrying the supported peers — exactly what the consumer runs. This
+      # transitively fetches the engine from its own release URL, so it proves
+      # both archives are valid, installable npm packages and that the rewritten
+      # dependency resolves. No runtime import: the app is browser code (WebGL,
+      # DOM) and would fail under bare node for reasons unrelated to packaging.
+      - name: Install the published packages like a consumer would
+        env:
+          VERSION: ${{ inputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          APP=$(basename "$(ls dist/aics-vole-app-*.tgz)")
+          URL="https://github.com/$REPO/releases/download/$VERSION/$APP"
+          mkdir -p /tmp/consumer && cd /tmp/consumer
+          npm init -y > /dev/null
+          # Install the peers first. vole-app pins `react` to 18.x while its
+          # `antd` peer accepts react >= 16.9, so in an EMPTY project npm picks
+          # the latest react for antd and then fails against that pin — a
+          # conflict about the consumer's tree, not about these tarballs.
+          # Installing the supported peers keeps this step a packaging check.
+          npm install react@18 react-dom@18 antd@5 three@0.184 \
+            --ignore-scripts --no-audit --no-fund
+          npm install "$URL" --ignore-scripts --no-audit --no-fund
+          test -f node_modules/@aics/vole-app/es/index.js \
+            || { echo "::error::@aics/vole-app installed without es/index.js"; exit 1; }
+          test -f node_modules/@aics/vole-core/es/index.js \
+            || { echo "::error::@aics/vole-core did not resolve from the release URL"; exit 1; }
+          echo "consumer install OK"

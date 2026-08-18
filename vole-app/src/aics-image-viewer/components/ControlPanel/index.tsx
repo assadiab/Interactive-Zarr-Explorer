@@ -1,6 +1,5 @@
 import { DotChartOutlined, HeatMapOutlined, NodeIndexOutlined, TagsOutlined } from "@ant-design/icons";
 import { Button, Checkbox, Collapse, type CollapseProps, Dropdown, Flex, type MenuProps, Tooltip } from "antd";
-import type { MenuInfo } from "rc-menu/lib/interface";
 import React from "react";
 
 import { PRESET_COLOR_MAP } from "../../shared/constants";
@@ -18,6 +17,13 @@ import ViewerIcon from "../shared/ViewerIcon";
 import TracksPanel from "../TracksPanel";
 
 import "./styles.css";
+
+/**
+ * What antd hands `Menu`'s `onClick`. Derived from antd's own props rather than imported from
+ * the underlying rc package: antd 6 renamed `rc-menu` to `@rc-component/menu`, which silently
+ * broke the old `rc-menu/lib/interface` import. Deriving it survives the next rename too.
+ */
+type MenuInfo = Parameters<NonNullable<MenuProps["onClick"]>>[0];
 
 interface ControlPanelProps extends ChannelsWidgetProps, GlobalVolumeControlsProps, CustomizeWidgetProps {
   hasImage: boolean;

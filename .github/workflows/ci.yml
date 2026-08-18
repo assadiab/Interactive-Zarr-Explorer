@@ -34,6 +34,12 @@ jobs:
         run: npm run lint
         working-directory: vole-core
 
+      - name: Typecheck vole-core
+        # Blocking: clean since `typeRoots` was pointed at node_modules/@types, so
+        # the `types` list can actually resolve "node".
+        run: npm run typeCheck
+        working-directory: vole-core
+
       - name: Test vole-core (vitest)
         run: npm test -- --passWithNoTests
         working-directory: vole-core
@@ -44,10 +50,9 @@ jobs:
         working-directory: vole-app
 
       - name: Typecheck vole-app
-        # non-blocking for now: one known pre-existing error (three@version
-        # Box3 mismatch in useVolume.ts) unrelated to this fork's code.
-        # Make this required once that mismatch is resolved.
-        continue-on-error: true
+        # Blocking: the three Box3 mismatch that used to make this fail is fixed
+        # (both packages now resolve a single @types/three), so 0 errors is the
+        # baseline and a regression should stop the build.
         run: npm run typeCheck
         working-directory: vole-app
 

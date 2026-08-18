@@ -1,4 +1,4 @@
-import { DotChartOutlined, HeatMapOutlined } from "@ant-design/icons";
+import { DotChartOutlined, HeatMapOutlined, NodeIndexOutlined, TagsOutlined } from "@ant-design/icons";
 import { Button, Checkbox, Collapse, type CollapseProps, Dropdown, Flex, type MenuProps, Tooltip } from "antd";
 import type { MenuInfo } from "rc-menu/lib/interface";
 import React from "react";
@@ -7,6 +7,7 @@ import { PRESET_COLOR_MAP } from "../../shared/constants";
 import type { MetadataRecord } from "../../shared/types";
 import { select, useViewerState } from "../../state/store";
 
+import AnnotationPanel from "../AnnotationPanel";
 import ChannelsWidget, { type ChannelsWidgetProps } from "../ChannelsWidget";
 import CustomizeWidget, { type CustomizeWidgetProps } from "../CustomizeWidget";
 import GlobalVolumeControls, { type GlobalVolumeControlsProps } from "../GlobalVolumeControls";
@@ -14,6 +15,7 @@ import CorrelationPanel from "../CorrelationPanel";
 import MetadataViewer from "../MetadataViewer";
 import ScatterPanel from "../ScatterPanel";
 import ViewerIcon from "../shared/ViewerIcon";
+import TracksPanel from "../TracksPanel";
 
 import "./styles.css";
 
@@ -35,6 +37,8 @@ const enum ControlTab {
   Metadata,
   Features,
   Correlation,
+  Annotation,
+  Tracks,
 }
 
 const ControlTabNames = {
@@ -43,6 +47,8 @@ const ControlTabNames = {
   [ControlTab.Metadata]: "Metadata",
   [ControlTab.Features]: "Features",
   [ControlTab.Correlation]: "Correlation",
+  [ControlTab.Annotation]: "Annotation",
+  [ControlTab.Tracks]: "Tracks",
 };
 
 function ControlPanel(props: ControlPanelProps): React.ReactElement {
@@ -56,6 +62,8 @@ function ControlPanel(props: ControlPanelProps): React.ReactElement {
   const changeViewerSetting = useViewerState(select("changeViewerSetting"));
   // Only offer the Features tab once a per-object measurement table has loaded.
   const hasMeasurements = useViewerState((state) => state.measurements !== null);
+  // Tracking comes from its own CSV, so it can be present without measurements and vice versa.
+  const hasTracking = useViewerState((state) => state.tracking !== null);
 
   const containerRef = React.useRef<HTMLDivElement>(null);
   const getDropdownContainer = (): HTMLElement => containerRef.current ?? document.body;
@@ -114,7 +122,7 @@ function ControlPanel(props: ControlPanelProps): React.ReactElement {
     <Tooltip title={ControlTabNames[thisTab]} placement="right">
       <Button
         aria-label={ControlTabNames[thisTab]}
-        className={tab === thisTab ? "ant-btn-icon-only btn-tabactive" : "ant-btn-icon-only"}
+        className={activeTab === thisTab ? "ant-btn-icon-only btn-tabactive" : "ant-btn-icon-only"}
         onClick={() => setTab(thisTab)}
         icon={typeof icon === "string" ? icon : undefined}
       >
@@ -164,6 +172,13 @@ function ControlPanel(props: ControlPanelProps): React.ReactElement {
     );
   };
 
+  // A tab whose data went away (a new image with no table, or no tracking CSV) loses its button, so fall back
+  // to Channels rather than leaving the panel showing an empty tab with no way back.
+  const needsMeasurements =
+    tab === ControlTab.Features || tab === ControlTab.Correlation || tab === ControlTab.Annotation;
+  const tabIsAvailable = needsMeasurements ? hasMeasurements : tab !== ControlTab.Tracks || hasTracking;
+  const activeTab = tabIsAvailable ? tab : ControlTab.Channels;
+
   const collapseLabel = props.collapsed ? "Show panel" : "Hide panel";
 
   return (
@@ -186,13 +201,15 @@ function ControlPanel(props: ControlPanelProps): React.ReactElement {
         {props.visibleControls.metadataViewer && renderTab(ControlTab.Metadata, <ViewerIcon type="metadata" />)}
         {hasMeasurements && renderTab(ControlTab.Features, <DotChartOutlined />)}
         {hasMeasurements && renderTab(ControlTab.Correlation, <HeatMapOutlined />)}
+        {hasMeasurements && renderTab(ControlTab.Annotation, <TagsOutlined />)}
+        {hasTracking && renderTab(ControlTab.Tracks, <NodeIndexOutlined />)}
       </div>
       <div className="control-panel-col" style={{ flex: "0 0 450px" }}>
-        <h2 className="control-panel-title">{ControlTabNames[tab]}</h2>
-        {visibleControls.colorPresetsDropdown && tab === ControlTab.Channels && renderChannelSettingsHeader()}
+        <h2 className="control-panel-title">{ControlTabNames[activeTab]}</h2>
+        {visibleControls.colorPresetsDropdown && activeTab === ControlTab.Channels && renderChannelSettingsHeader()}
         {hasImage && (
           <div className="control-panel-content">
-            {tab === ControlTab.Channels && (
+            {activeTab === ControlTab.Channels && (
               <ChannelsWidget
                 channelDataChannels={props.channelDataChannels}
                 channelGroupedByType={props.channelGroupedByType}
@@ -203,20 +220,30 @@ function ControlPanel(props: ControlPanelProps): React.ReactElement {
                 viewerChannelSettings={viewerChannelSettings}
               />
             )}
-            {tab === ControlTab.Advanced && renderAdvancedSettings()}
-            {tab === ControlTab.Metadata && <MetadataViewer metadata={props.metadata} />}
+            {activeTab === ControlTab.Advanced && renderAdvancedSettings()}
+            {activeTab === ControlTab.Metadata && <MetadataViewer metadata={props.metadata} />}
           </div>
         )}
         {/* Features (scatter) and Correlation are independent of the loaded image,
             so they render outside the hasImage gate. */}
-        {tab === ControlTab.Features && (
+        {activeTab === ControlTab.Features && (
           <div className="control-panel-content">
             <ScatterPanel />
           </div>
         )}
-        {tab === ControlTab.Correlation && (
+        {activeTab === ControlTab.Correlation && (
           <div className="control-panel-content">
             <CorrelationPanel />
+          </div>
+        )}
+        {activeTab === ControlTab.Annotation && (
+          <div className="control-panel-content">
+            <AnnotationPanel />
+          </div>
+        )}
+        {activeTab === ControlTab.Tracks && (
+          <div className="control-panel-content">
+            <TracksPanel />
           </div>
         )}
       </div>

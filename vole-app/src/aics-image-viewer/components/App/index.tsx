@@ -29,7 +29,6 @@ import type { AppProps, ControlVisibilityFlags, MultisceneUrls, MultisceneZips, 
 
 import CellViewerCanvasWrapper from "../CellViewerCanvasWrapper";
 import ControlPanel from "../ControlPanel";
-import RightPanel from "../RightPanel";
 import { useErrorAlert } from "../ErrorAlert";
 import StyleProvider from "../StyleProvider";
 import Toolbar from "../Toolbar";
@@ -467,12 +466,6 @@ const App: React.FC<AppProps> = (props) => {
 
   // const [channelGroupedByType, setChannelGroupedByType] = useState<ChannelGrouping>({});
   const [controlPanelClosed, setControlPanelClosed] = useState(() => window.innerWidth < CONTROL_PANEL_CLOSE_WIDTH);
-  // The right analysis panel exists once there is something for it to show: a measurement table (Annotation tab) or a
-  // tracking result (Tracks tab). Tracking is loaded from a separate CSV, so it can be present without measurements.
-  const hasMeasurements = useViewerState((s) => s.measurements !== null);
-  const hasTracking = useViewerState((s) => s.tracking !== null);
-  const showRightPanel = hasMeasurements || hasTracking;
-  const [rightPanelClosed, setRightPanelClosed] = useState(false);
   // Only allow auto-close once while the screen is too narrow.
   const [hasAutoClosedControlPanel, setHasAutoClosedControlPanel] = useState(false);
 
@@ -714,18 +707,6 @@ const App: React.FC<AppProps> = (props) => {
             />
           </Content>
         </Layout>
-        {showRightPanel && (
-          <Sider
-            className="control-panel-holder"
-            collapsible={true}
-            collapsedWidth={50}
-            trigger={null}
-            collapsed={rightPanelClosed}
-            width={410}
-          >
-            <RightPanel collapsed={rightPanelClosed} setCollapsed={setRightPanelClosed} />
-          </Sider>
-        )}
       </Layout>
     </StyleProvider>
   );

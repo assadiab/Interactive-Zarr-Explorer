@@ -1,6 +1,6 @@
 import type { View3d, Volume } from "@aics/vole-core";
 import type React from "react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Color } from "three";
 
 import { buildSelectionColorize } from "../shared/utils/colorizeSelection";
@@ -30,6 +30,15 @@ interface SelectionHighlighterProps {
  */
 const SelectionHighlighter: React.FC<SelectionHighlighterProps> = ({ view3d, image }) => {
   const selectedIds = useViewerState(select("selectedIds"));
+  const measurements = useViewerState(select("measurements"));
+  // The loaded label raster changes with the timepoint, and so can its largest id — see below.
+  const time = useViewerState(select("time"));
+
+  /** Largest label id in the measurement table, or 0 when there is no table. */
+  const tableMaxLabelId = useMemo(
+    () => (measurements ? measurements.labelIds.reduce((max, id) => (id > max ? id : max), 0) : 0),
+    [measurements]
+  );
 
   useEffect(() => {
     if (!image) {
@@ -39,10 +48,24 @@ const SelectionHighlighter: React.FC<SelectionHighlighterProps> = ({ view3d, ima
     if (labelChannels.length === 0) {
       return;
     }
+    const channelIndex = labelChannels[0].channelIndex;
+
+    // The per-frame id lookup has to span every label id the raster can hold, not just the
+    // selected ones — a lookup that stops short makes unselected objects read back as selected
+    // (see `colorizeSelection`). Two sources bound it, and neither alone is enough: the table
+    // covers every frame but only objects that were measured, while the channel's `rawMax` is
+    // measured from the raster itself but only for the timepoint currently loaded. Hence both,
+    // and hence `time` in the dependencies.
+    const labelIdCeiling = Math.max(tableMaxLabelId, image.getChannel(channelIndex).rawMax);
+
     // `buildSelectionColorize` returns null for an empty selection, and null is exactly what
     // `setChannelColorizeFeature` wants in order to clear — so no branch is needed here.
-    view3d.setChannelColorizeFeature(image, labelChannels[0].channelIndex, buildSelectionColorize(selectedIds, HIGHLIGHT));
-  }, [view3d, image, selectedIds]);
+    view3d.setChannelColorizeFeature(
+      image,
+      channelIndex,
+      buildSelectionColorize(selectedIds, HIGHLIGHT, labelIdCeiling)
+    );
+  }, [view3d, image, selectedIds, tableMaxLabelId, time]);
 
   return null;
 };

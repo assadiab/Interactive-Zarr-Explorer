@@ -5,6 +5,7 @@ import { useShallow } from "zustand/shallow";
 
 import { SINGLE_CHANNEL_MODE_COLOR } from "../../shared/constants";
 import { binIndexedControlPointsToLut, rampToControlPoints } from "../../shared/utils/controlPointsToLut";
+import { getLabelChannels } from "../../shared/utils/labelChannels";
 import { select, useViewerState, type ViewerStore } from "../../state/store";
 import type { UseImageEffectType } from "./types";
 
@@ -24,6 +25,15 @@ const ChannelUpdater: React.FC<ChannelUpdaterProps> = ({ index, view3d, image, v
   const channelState = useViewerState(channelStateSelector);
   const singleChannelMode = useViewerState(select("singleChannelMode"));
   const singleChannelIndex = useViewerState(select("singleChannelIndex"));
+  const selectionCount = useViewerState((state: ViewerStore) => state.selectedIds.size);
+
+  // A label channel painting a selection has to take part in the fusion, even while the user keeps it
+  // hidden: `FusedChannelData.fuse` skips every channel whose `rgbColor` is the disabled sentinel, so a
+  // hidden channel is never handed to the shader and its colorize feature can never draw. Being fused
+  // does not make the labels themselves visible — with a colorize feature the channel draws only the
+  // objects the feature maps, and `SelectionHighlighter` maps exactly the selected ones.
+  const paintsSelection =
+    selectionCount > 0 && image !== null && getLabelChannels(image).some((c) => c.channelIndex === index);
   const { volumeEnabled, isosurfaceEnabled, isovalue, colorizeEnabled, colorizeAlpha, opacity, color } = channelState;
 
   // Effects to update channel settings should check if image is present and channel is loaded first
@@ -45,10 +55,19 @@ const ChannelUpdater: React.FC<ChannelUpdaterProps> = ({ index, view3d, image, v
         // if this is the focused channel in single-channel mode, enable volume unless *only* isosurface is enabled
         enabled = index === singleChannelIndex && !(!volumeEnabled && isosurfaceEnabled);
       }
-      view3d.setVolumeChannelEnabled(image, index, enabled);
+      view3d.setVolumeChannelEnabled(image, index, enabled || paintsSelection);
       view3d.updateLuts(image);
     }
-  }, [image, volumeEnabled, index, view3d, singleChannelMode, singleChannelIndex, isosurfaceEnabled]);
+  }, [
+    image,
+    volumeEnabled,
+    index,
+    view3d,
+    singleChannelMode,
+    singleChannelIndex,
+    isosurfaceEnabled,
+    paintsSelection,
+  ]);
 
   useEffect(() => {
     if (image) {

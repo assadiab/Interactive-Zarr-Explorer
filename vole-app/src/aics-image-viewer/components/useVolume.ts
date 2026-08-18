@@ -34,6 +34,12 @@ export type UseVolumeOptions = {
   maskChannelName?: string;
   /** Total bytes the volume's channel textures may occupy. See `AppProps.maxAtlasBytes`. */
   maxAtlasBytes?: number;
+  /** Bytes of decoded chunk data the shared cache may hold. See `AppProps.cacheMaxSize`. */
+  cacheMaxSize?: number;
+  /** Chunk requests allowed in flight at once. See `AppProps.queueMaxSize`. */
+  queueMaxSize?: number;
+  /** How many in-flight requests may be prefetches. See `AppProps.queueMaxLowPrioritySize`. */
+  queueMaxLowPrioritySize?: number;
 };
 
 /**
@@ -125,8 +131,15 @@ const useVolume = (
 
   // set up our big objects: the image, its loading infrastructure, and controls for playback
   const [image, setImage] = useState<Volume | null>(null);
+  // Read once: `useConstructor` builds the context a single time, so later prop changes would be
+  // ignored anyway. Making that explicit beats a dependency array that silently does nothing.
   const loadContext = useConstructor(
-    () => new VolumeLoaderContext(CACHE_MAX_SIZE, QUEUE_MAX_SIZE, QUEUE_MAX_LOW_PRIORITY_SIZE)
+    () =>
+      new VolumeLoaderContext(
+        options?.cacheMaxSize ?? CACHE_MAX_SIZE,
+        options?.queueMaxSize ?? QUEUE_MAX_SIZE,
+        options?.queueMaxLowPrioritySize ?? QUEUE_MAX_LOW_PRIORITY_SIZE
+      )
   );
   const sceneLoader = useMemo(() => new SceneStore(loadContext, scenePaths), [loadContext, scenePaths]);
   const playControls = useConstructor(() => new PlayControls());

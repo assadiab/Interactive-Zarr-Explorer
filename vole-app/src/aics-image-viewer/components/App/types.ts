@@ -99,6 +99,30 @@ export interface AppProps {
    * many channels a volume carries.
    */
   maxAtlasBytes?: number;
+
+  /**
+   * Bytes of decoded chunk data the shared loader cache may hold. Defaults to 1 GB.
+   *
+   * The cache is what makes scrubbing time or Z cheap; shrink it on memory-constrained hosts,
+   * grow it when the same volume is revisited a lot.
+   */
+  cacheMaxSize?: number;
+
+  /**
+   * Chunk requests allowed in flight at once. Defaults to 10.
+   *
+   * Higher saturates a fast connection sooner; lower is kinder to a server that rate-limits, and
+   * to the CID API which reads zip entries server-side.
+   */
+  queueMaxSize?: number;
+
+  /**
+   * How many of `queueMaxSize` may be low-priority (prefetch) requests. Defaults to 6.
+   *
+   * Lower it to keep prefetching from crowding out the chunks actually being looked at.
+   */
+  queueMaxLowPrioritySize?: number;
+
   // FOURTH WAY TO GET DATA INTO THE VIEWER: let the user pick from a catalog the host declares
 
   /**

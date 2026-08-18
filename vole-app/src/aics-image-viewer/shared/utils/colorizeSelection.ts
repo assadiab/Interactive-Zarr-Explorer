@@ -1,4 +1,4 @@
-import { Color, DataTexture, FloatType, RedFormat, RedIntegerFormat, RGBAFormat, UnsignedByteType, UnsignedIntType } from "three";
+import { type Color, DataTexture, FloatType, RedFormat, RedIntegerFormat, RGBAFormat, UnsignedByteType, UnsignedIntType } from "three";
 
 import { objectKeyFrame, objectKeyLabelId, type ObjectKey } from "./objectKey";
 
@@ -81,7 +81,7 @@ export type FrameLookup = { minSegId: number; segIdToGlobalId: Uint32Array<Array
  */
 export function packSelectionLookups(
   selected: Iterable<ObjectKey>,
-  labelIdCeiling = 0
+  labelIdCeiling: number = 0
 ): {
   frames: Map<number, FrameLookup>;
   objectCount: number;
@@ -193,7 +193,7 @@ const SELECTED_FEATURE_VALUE = 1;
 export function buildSelectionColorize(
   selected: Iterable<ObjectKey>,
   highlight: Color,
-  labelIdCeiling = 0
+  labelIdCeiling: number = 0
 ): SelectionColorize | null {
   const { frames, objectCount } = packSelectionLookups(selected, labelIdCeiling);
   if (objectCount === 0) {

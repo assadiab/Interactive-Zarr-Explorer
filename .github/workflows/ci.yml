@@ -28,9 +28,7 @@ jobs:
         working-directory: vole-core
 
       - name: Lint vole-core
-        # non-blocking for now: inherited code carries lint debt.
-        # Make this required once the inherited warnings are cleared.
-        continue-on-error: true
+        # Blocking: vole-core lints clean, so 0 problems is the baseline.
         run: npm run lint
         working-directory: vole-core
 
@@ -57,7 +55,9 @@ jobs:
         working-directory: vole-app
 
       - name: Lint vole-app
-        continue-on-error: true
+        # Blocking: the inherited debt turned out to be six problems, all cleared.
+        # A non-blocking check is not a check — main spent days not typechecking
+        # because the equivalent escape hatch was still open there.
         run: npm run lint
         working-directory: vole-app
 

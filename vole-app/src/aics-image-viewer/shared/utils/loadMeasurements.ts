@@ -28,7 +28,7 @@ const FRAME_COLUMNS = ["timestep", "frame", "t", "time"];
  */
 export async function loadMeasurements(
   store: ZarrStore,
-  tablePath = "/tables/measurements"
+  tablePath: string = "/tables/measurements"
 ): Promise<MeasurementTable | null> {
   const root = zarr.root(store);
 

@@ -157,12 +157,19 @@ export default class VolumeDrawable {
 
   /**
    * Updates whether a channel's data must be loaded for rendering,
-   * based on if its volume or isosurface is enabled, or whether it is needed for masking.
+   * based on if its volume or isosurface is enabled, or whether it is needed for masking
+   * or picking.
    * Calls `Volume.updateRequiredData` to update the list of required channels if necessary.
    */
   private updateChannelDataRequired(channelIndex: number): void {
     const { enabled, isosurfaceEnabled } = this.channelOptions[channelIndex];
-    const channelIsRequired = enabled || isosurfaceEnabled || channelIndex === this.settings.maskChannelIndex;
+    // The picked channel is read by `hitTest`, not drawn, so it is required even while its
+    // volume and isosurface are both off. Without this a label channel — which callers
+    // deliberately keep hidden — gets dropped from the load list on the next settings
+    // change, and picking silently starts reading an empty channel.
+    const isPicked = this.pickRendering?.getChannelToPick() === channelIndex;
+    const channelIsRequired =
+      enabled || isosurfaceEnabled || isPicked || channelIndex === this.settings.maskChannelIndex;
     const requiredChannels = this.volume.loadSpecRequired.channels;
 
     if (requiredChannels.includes(channelIndex)) {

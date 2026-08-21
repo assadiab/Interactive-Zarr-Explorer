@@ -4,6 +4,7 @@ type-declarations/
 src/aics-image-viewer/shared/utils/webgl-debug.js
 server.js
 jest.*.js
+scripts/
 webpack.*.js
 postcss.*.js
 node_modules

@@ -122,6 +122,50 @@ describe("ZipStore", () => {
       await expect(store.get("/.zgroup")).rejects.toMatchObject({ type: VolumeLoadErrorType.LOAD_DATA_FAILED });
     });
 
+    it("reports a clear error when the archive is truncated", async () => {
+      // The guard being exercised sits on the STORE fast path: it refuses to slice when an
+      // entry's data would run past the end of the blob, rather than handing zarrita short
+      // data. Reaching it needs an archive whose central directory is still *readable* while
+      // an entry's payload is gone — plain truncation removes the directory itself and only
+      // produces "not a valid .zip".
+      //
+      // So the bytes are operated on: cut a hole out of the last entry's payload, then patch
+      // the end-of-central-directory record so the directory is still found at its new
+      // offset. Every local header offset stays valid because the hole is after them.
+      const whole = new Uint8Array(
+        await (await makeZip([{ name: ".zgroup", content: ZGROUP }, { name: "0/0.0", content: "y".repeat(4000) }])).arrayBuffer()
+      );
+
+      const EOCD_SIGNATURE = 0x06054b50;
+      const view = new DataView(whole.buffer);
+      let eocd = whole.length - 22;
+      while (eocd >= 0 && view.getUint32(eocd, true) !== EOCD_SIGNATURE) {
+        eocd--;
+      }
+      expect(eocd).toBeGreaterThan(0);
+
+      const directoryOffset = view.getUint32(eocd + 16, true);
+      const cut = 1500;
+      const truncated = new Uint8Array(whole.length - cut);
+      truncated.set(whole.subarray(0, directoryOffset - cut), 0);
+      truncated.set(whole.subarray(directoryOffset), directoryOffset - cut);
+
+      // Point the record at where the directory now starts.
+      const patched = new DataView(truncated.buffer);
+      let newEocd = truncated.length - 22;
+      while (newEocd >= 0 && patched.getUint32(newEocd, true) !== EOCD_SIGNATURE) {
+        newEocd--;
+      }
+      patched.setUint32(newEocd + 16, directoryOffset - cut, true);
+
+      const store = new ZipStore(new Blob([truncated]));
+      // Metadata still reads: it sits before the hole.
+      expect(decode(await store.get("/.zgroup"))).toBe(ZGROUP);
+      // The chunk does not, and says why.
+      await expect(store.get("/0/0.0")).rejects.toMatchObject({ type: VolumeLoadErrorType.LOAD_DATA_FAILED });
+      await expect(store.get("/0/0.0")).rejects.toThrow(/truncated/i);
+    });
+
     it("builds the index only once across many reads", async () => {
       const store = new ZipStore(await makeZip([{ name: ".zgroup", content: ZGROUP }, { name: "0/0.0", content: "c" }]));
       const results = await Promise.all([store.get("/.zgroup"), store.get("/0/0.0"), store.get("/nope")]);

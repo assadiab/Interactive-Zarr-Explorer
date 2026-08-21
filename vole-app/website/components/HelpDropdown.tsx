@@ -39,14 +39,6 @@ export default function HelpDropdown(): ReactElement {
       ),
     },
     {
-      key: "forum",
-      label: (
-        <Link to="https://forum.allencell.org/c/software-code/11" target="_blank" rel="noreferrer noopener">
-          Allen Cell Discussion Forum
-        </Link>
-      ),
-    },
-    {
       key: "version",
       label: "Version info",
       onClick: () => {

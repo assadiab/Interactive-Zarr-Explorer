@@ -6,8 +6,12 @@
 # --- Claude Code local state ---
 .claude/
 
-# --- pixi environment (regenerated from pixi.lock via `pixi install`) ---
+# --- pixi (environment + lock file) ---
+# The lock is not tracked: CI does not use pixi (it pins Node through setup-node,
+# matching the `nodejs >=20,<21` constraint here), so the lock only ever pinned the
+# maintainer's own machines and churned on every platform touch.
 .pixi/
+pixi.lock
 
 # --- Node modules (also covered by vole-app/ and vole-core/ .gitignore) ---
 node_modules/

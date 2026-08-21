@@ -3,7 +3,9 @@ name = "vole-workspace"
 version = "0.1.0"
 description = "Vol-E monorepo — vole-core (engine) + vole-app (React app) with local OME-Zarr .zip support"
 channels = ["conda-forge"]
-platforms = ["osx-arm64","win-64"]
+# linux-64 is listed so a Linux contributor can use pixi too; CI does not use pixi at
+# all (it pins Node through setup-node, matching the constraint below).
+platforms = ["osx-arm64", "win-64", "linux-64"]
 
 [dependencies]
 nodejs = ">=20,<21"
@@ -48,3 +50,19 @@ rebuild-core = { cmd = "npm run build", cwd = "vole-core" }
 typecheck-core = { cmd = "npx tsc --noEmit -p tsconfig.json", cwd = "vole-core" }
 typecheck-app  = { cmd = "npm run typeCheck", cwd = "vole-app" }
 typecheck      = { depends-on = ["typecheck-core", "typecheck-app"] }
+
+# ---------------------------------------------------------------------------
+# Lint and test — same checks CI runs, so a failure can be reproduced locally
+# with one command instead of two `cd`s remembered from the README.
+# ---------------------------------------------------------------------------
+
+lint-core = { cmd = "npm run lint", cwd = "vole-core" }
+lint-app  = { cmd = "npm run lint", cwd = "vole-app" }
+lint      = { depends-on = ["lint-core", "lint-app"] }
+
+test-core = { cmd = "npm test -- --run", cwd = "vole-core" }
+test-app  = { cmd = "npm test", cwd = "vole-app" }
+test      = { depends-on = ["test-core", "test-app"] }
+
+# Everything CI checks, in the order it checks it.
+check = { depends-on = ["typecheck", "lint", "test"] }

@@ -1,6 +1,6 @@
 [workspace]
 name = "vole-workspace"
-version = "0.1.0"
+version = "1.0.0"
 description = "Vol-E monorepo — vole-core (engine) + vole-app (React app) with local OME-Zarr .zip support"
 channels = ["conda-forge"]
 # linux-64 is listed so a Linux contributor can use pixi too; CI does not use pixi at

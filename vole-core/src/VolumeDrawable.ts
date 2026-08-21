@@ -233,8 +233,11 @@ export default class VolumeDrawable {
   }
 
   setChannelOptions(channelIndex: number, options: VolumeChannelDisplayOptions): void {
-    // merge to current channel options
-    this.channelOptions[channelIndex] = Object.assign(this.channelOptions[channelIndex], options);
+    // Merge into the current channel options. Spread rather than `Object.assign`, which
+    // invokes setters on the target — a `__proto__` key arriving from host-supplied
+    // options would then change the object's prototype instead of becoming a property.
+    // Spreading also stops this from mutating an options object the caller still holds.
+    this.channelOptions[channelIndex] = { ...this.channelOptions[channelIndex], ...options };
 
     if (options.enabled !== undefined) {
       this.setVolumeChannelEnabled(channelIndex, options.enabled);

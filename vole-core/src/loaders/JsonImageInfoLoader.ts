@@ -201,8 +201,10 @@ class JsonImageInfoLoader extends ThreadableVolumeLoader {
       images = images.filter(({ channels }) => channels.some((ch) => requestedChannels.includes(ch)));
     }
 
-    // This regex removes everything after the last slash, so the url had better be simple.
-    const urlPrefix = this.urls[loadSpec.time].replace(/[^/]*$/, "");
+    // Everything after the last slash, dropped. `lastIndexOf` rather than `/[^/]*$/`,
+    // which backtracks quadratically on a long slash-free URL.
+    const url = this.urls[loadSpec.time];
+    const urlPrefix = url.slice(0, url.lastIndexOf("/") + 1);
     images = images.map((element) => ({ ...element, name: urlPrefix + element.name }));
 
     // Update `image`'s `loadSpec` before loading

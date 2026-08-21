@@ -213,9 +213,24 @@ export default class ZipStore implements AsyncReadable<unknown> {
   }
 }
 
-/** Strip leading slashes, collapse trailing slash to exactly one (or empty). */
+/**
+ * Strip leading slashes, collapse trailing slash to exactly one (or empty).
+ *
+ * Trimmed by index rather than with `/\/+$/`: an anchored `+` over a repeated character
+ * backtracks quadratically, and `rootPath` comes from the caller (a URL parameter, or a
+ * host application's prop), so a long run of slashes is cheap to send and expensive to
+ * match. Walking the ends is linear and says the same thing.
+ */
 function normalizePrefix(rootPath: string): string {
-  const trimmed = rootPath.replace(/^\/+/, "").replace(/\/+$/, "");
+  let start = 0;
+  while (start < rootPath.length && rootPath[start] === "/") {
+    start++;
+  }
+  let end = rootPath.length;
+  while (end > start && rootPath[end - 1] === "/") {
+    end--;
+  }
+  const trimmed = rootPath.slice(start, end);
   return trimmed ? trimmed + "/" : "";
 }
 

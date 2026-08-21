@@ -103,6 +103,16 @@ describe("ZipStore", () => {
       expect(decode(await store.get("/.zgroup"))).toBe('{"which":"b"}');
     });
 
+    it("tolerates extra slashes around an explicit rootPath", async () => {
+      // `normalizePrefix` trims by index rather than with an anchored `+` regex, which
+      // backtracks quadratically; these are the cases that trimming has to keep handling.
+      const zip = await makeZip([{ name: "b/.zgroup", content: ZGROUP }]);
+      for (const rootPath of ["b", "/b", "b/", "///b///"]) {
+        const store = new ZipStore(zip, rootPath);
+        expect(decode(await store.get("/.zgroup"))).toBe(ZGROUP);
+      }
+    });
+
     it("normalizes Windows backslash separators", async () => {
       // The ZIP spec mandates "/", but some Windows tools write "\"; zarrita always asks with "/".
       const store = new ZipStore(await makeZip([{ name: "img.ome.zarr\\.zgroup", content: ZGROUP }]));

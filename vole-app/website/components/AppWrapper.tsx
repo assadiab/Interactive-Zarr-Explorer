@@ -1,5 +1,4 @@
 import type { View3d } from "@aics/vole-core";
-import type { FirebaseFirestore } from "@firebase/firestore-types";
 import { isEqual } from "lodash";
 import React, { type ReactElement, useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -37,7 +36,6 @@ const DEFAULT_APP_PROPS: AppDataProps = {
 };
 
 type AppWrapperProps = {
-  firestore?: FirebaseFirestore;
 };
 
 const TOO_MANY_SCENES_ERROR: ErrorAlertDescription = {
@@ -83,7 +81,7 @@ export default function AppWrapper(props: AppWrapperProps): ReactElement {
 
     const getViewerStateFromSearchParams = async (): Promise<void> => {
       try {
-        const urlArgs = await parseViewerUrlParams(window.location.search, props.firestore);
+        const urlArgs = await parseViewerUrlParams(window.location.search);
         if (ignore) return;
         setViewerProps({ ...DEFAULT_APP_PROPS, ...urlArgs.args, ...locationArgs });
 
@@ -154,7 +152,7 @@ export default function AppWrapper(props: AppWrapperProps): ReactElement {
     return () => {
       ignore = true;
     };
-  }, [location.state, searchParams, setSearchParams, mergeViewerSettings, showErrorAlert, props.firestore]);
+  }, [location.state, searchParams, setSearchParams, mergeViewerSettings, showErrorAlert]);
 
   // TODO: Disabled for now, since it only makes sense for Zarr/OME-tiff URLs. Checking for
   // validity may be more complex. (Also, we could add a callback to `ImageViewerApp` for successful

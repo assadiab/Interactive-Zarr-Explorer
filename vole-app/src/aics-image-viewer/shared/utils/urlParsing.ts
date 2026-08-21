@@ -1,5 +1,4 @@
 import type { CameraState, ControlPoint } from "@aics/vole-core";
-import type { FirebaseFirestore } from "@firebase/firestore-types";
 import { isEqual } from "lodash";
 
 import type { AppProps, MultisceneUrls } from "../../components/App/types";
@@ -10,7 +9,6 @@ import { ImageType, RenderMode, ViewMode } from "../enums";
 import type { ManifestJson, MetadataRecord, PerAxis } from "../types";
 import type { ColorArray } from "./colorRepresentations";
 import { removeMatchingProperties, removeUndefinedProperties } from "./datatypes";
-import FirebaseRequest, { type DatasetMetaData } from "./firebase";
 import { clamp } from "./math";
 import { readStoredMetadata, readStoredScenes } from "./storage";
 import type { ViewerChannelSetting, ViewerChannelSettings } from "./viewerChannelSettings";
@@ -1035,39 +1033,6 @@ function parseChannelSettings(params: ChannelParams): ViewerChannelSettings | un
 }
 
 //// FULL URL PARSING //////////////////////
-async function loadDataset(firestore: FirebaseFirestore, dataset: string, id: string): Promise<Partial<AppProps>> {
-  const db = new FirebaseRequest(firestore);
-  const args: Partial<AppProps> = {};
-
-  const datasets = await db.getAvailableDatasets();
-
-  let datasetMeta: DatasetMetaData | undefined = undefined;
-  for (const d of datasets) {
-    const innerDatasets = d.datasets!;
-    const names = Object.keys(innerDatasets);
-    const matchingName = names.find((name) => name === dataset);
-    if (matchingName) {
-      datasetMeta = innerDatasets[matchingName];
-      break;
-    }
-  }
-  if (datasetMeta === undefined) {
-    console.error(`No matching dataset: ${dataset}`);
-    return {};
-  }
-
-  const datasetData = await db.selectDataset(datasetMeta.manifest!);
-  const baseUrl = datasetData.volumeViewerDataRoot + "/";
-  args.imageDownloadHref = datasetData.downloadRoot + "/" + id;
-  // args.fovDownloadHref = datasetData.downloadRoot + "/" + id;
-
-  const fileInfo = await db.getFileInfoByCellId(id);
-  args.imageUrl = baseUrl + fileInfo!.volumeviewerPath;
-  args.parentImageUrl = baseUrl + fileInfo!.fovVolumeviewerPath;
-
-  return args;
-}
-
 function isStringArray(arr: any[]): arr is string[] {
   return Array.isArray(arr) && arr.every((item) => typeof item === "string");
 }
@@ -1126,18 +1091,13 @@ export async function loadFromManifest(
 /**
  * Parses a set of URL search parameters into props for the viewer.
  * @param search The query string to parse, which must be valid in the `URLSearchParams constructor
- * @param firestore Optional Firestore instance. If provided, the function can load data from a
- * Firestore dataset if the `dataset` and `id` parameters are provided.
  * @returns An object containing:
  * - `args`: Partial AppProps object.
  * - `viewerSettings`: Partial ViewerState object.
  *
  * `args` can be passed as props to the `ImageViewerApp`, and `viewerSettings` can be passed to `ViewerStateProvider`.
  */
-export async function parseViewerUrlParams(
-  search: string,
-  firestore?: FirebaseFirestore
-): Promise<{
+export async function parseViewerUrlParams(search: string): Promise<{
   args: Partial<AppProps>;
   viewerSettings: Partial<ViewerState>;
 }> {
@@ -1200,10 +1160,6 @@ export async function parseViewerUrlParams(
         ],
       };
     }
-  } else if (params.dataset && params.id && firestore) {
-    // ?dataset=aics_hipsc_v2020.1&id=232265
-    const datasetArgs = await loadDataset(firestore, params.dataset, params.id);
-    args = { ...args, ...datasetArgs };
   }
 
   return { args: removeUndefinedProperties(args), viewerSettings: removeUndefinedProperties(viewerSettings) };

@@ -5,8 +5,9 @@ name: Release
 # (the app depends on the engine through `file:../vole-core`, which is
 # meaningless outside the monorepo — step 5 rewrites it to the release URL).
 #
-# Manual trigger only. Prefer a prerelease tag (the default) while the
-# repository history is not frozen: the first real tag is meant to be v0.1.0.
+# Manual trigger only: a release publishes artifacts under permanent URLs, so it
+# should never fire on a merge. `prerelease` defaults to true — untick it for a
+# real release. v1.0.0 was the first.
 
 on:
   workflow_dispatch:
@@ -154,15 +155,36 @@ jobs:
           ls -la dist/
 
       # --- 6. Publish ------------------------------------------------------
+      # Notes come from CHANGELOG.md, not from `--generate-notes`. Auto-generated
+      # notes are a list of every merged pull request, which on this repository is
+      # overwhelmingly Dependabot bumps — a reader learns nothing about the release
+      # from them. The changelog section is what the release is actually about.
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
           PRERELEASE_FLAG: ${{ inputs.prerelease && '--prerelease' || '' }}
         run: |
+          set -euo pipefail
+          node -e '
+              const fs = require("fs");
+              const wanted = process.argv[1].replace(/^v/, "");
+              const lines = fs.readFileSync("CHANGELOG.md", "utf8").split("\n");
+              const start = lines.findIndex((l) => l.startsWith(`## [${wanted}]`));
+              if (start === -1) {
+                console.error(`::error::CHANGELOG.md has no section for ${wanted}. Add it before releasing.`);
+                process.exit(1);
+              }
+              let end = lines.length;
+              for (let i = start + 1; i < lines.length; i++) {
+                if (lines[i].startsWith("## ")) { end = i; break; }
+              }
+              fs.writeFileSync("release-notes.md", lines.slice(start + 1, end).join("\n").trim() + "\n");
+            ' "$VERSION"
+
           gh release create "$VERSION" dist/*.tgz \
             --title "$VERSION" \
-            --generate-notes \
+            --notes-file release-notes.md \
             $PRERELEASE_FLAG
 
       # --- 7. End-to-end check --------------------------------------------
@@ -180,15 +202,30 @@ jobs:
           set -euo pipefail
           APP=$(basename "$(ls dist/aics-vole-app-*.tgz)")
           URL="https://github.com/$REPO/releases/download/$VERSION/$APP"
+          # Read the peers out of the packed manifests instead of naming them here.
+          # The hardcoded list said `antd@5` and drifted the day Dependabot moved
+          # vole-app to antd 6: the mismatch was invisible until release time, and
+          # it failed AFTER the release had already been published. Deriving them
+          # cannot drift.
+          PEERS=$(node -e '
+              const fs = require("fs");
+              const specs = new Map();
+              for (const path of process.argv.slice(1)) {
+                const peers = JSON.parse(fs.readFileSync(path, "utf8")).peerDependencies || {};
+                for (const [name, range] of Object.entries(peers)) specs.set(name, range);
+              }
+              console.log([...specs].map(([n, r]) => `${n}@${r}`).join(" "));
+            ' <(tar -xzOf "$(ls dist/aics-vole-core-*.tgz)" package/package.json) \
+              <(tar -xzOf "$(ls dist/aics-vole-app-*.tgz)" package/package.json))
+          echo "peers: $PEERS"
+
           mkdir -p /tmp/consumer && cd /tmp/consumer
           npm init -y > /dev/null
-          # Install the peers first. vole-app pins `react` to 18.x while its
-          # `antd` peer accepts react >= 16.9, so in an EMPTY project npm picks
-          # the latest react for antd and then fails against that pin — a
-          # conflict about the consumer's tree, not about these tarballs.
-          # Installing the supported peers keeps this step a packaging check.
-          npm install react@18 react-dom@18 antd@5 three@0.184 \
-            --ignore-scripts --no-audit --no-fund
+          # Install the peers first. vole-app pins `react` to 18.x while its `antd`
+          # peer accepts react >= 16.9, so in an EMPTY project npm picks the latest
+          # react for antd and then fails against that pin — a conflict about the
+          # consumer's tree, not about these tarballs.
+          npm install $PEERS --ignore-scripts --no-audit --no-fund
           npm install "$URL" --ignore-scripts --no-audit --no-fund
           test -f node_modules/@aics/vole-app/es/index.js \
             || { echo "::error::@aics/vole-app installed without es/index.js"; exit 1; }
